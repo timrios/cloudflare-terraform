@@ -329,3 +329,5 @@ Added the first time each comes up.
 - *Why pass secrets through `env:` instead of into the script?* A secret's content then can't be interpreted as a shell command.
 - *What stops a modified workflow from applying changes?* The credentials are read-only, so the API refuses.
 - *How would you give a client's CI the same setup?* Each client has its own repo, token limited to their zone, and their own secrets.
+
+**A limit I ran into:** GitHub enforces branch rules (require a pull request before merging) on private repos only on paid plans. On the free plan the rule saves but does nothing, so I deleted it rather than keep a false sense of safety. What protects the live domain is the credentials: CI's are read-only, and the read/write key never leaves my laptop. Two-factor on the GitHub account covers the remaining risk. *Interview line:* controls that depend on settings you can't enforce are weaker than limits built into the credentials.
