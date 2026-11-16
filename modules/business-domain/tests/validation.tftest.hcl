@@ -88,7 +88,38 @@ run "extra_records_reject_other_types" {
   command = plan
   variables {
     extra_records = {
-      bad = { name = "@", type = "MX", content = "mail.example.net" }
+      bad = { name = "@", type = "A", content = "1.2.3.4" }
+    }
+  }
+  expect_failures = [var.extra_records]
+}
+
+run "extra_caa_records_need_a_tag" {
+  command = plan
+  variables {
+    extra_records = {
+      caa = { name = "@", type = "CAA", content = "letsencrypt.org" }
+    }
+  }
+  expect_failures = [var.extra_records]
+}
+
+run "extra_caa_records_reject_unknown_tags" {
+  command = plan
+  variables {
+    extra_records = {
+      caa = { name = "@", type = "CAA", content = "letsencrypt.org", tag = "allow" }
+    }
+  }
+  expect_failures = [var.extra_records]
+}
+
+# Cloudflare refuses an MX record with no priority, so catch it at plan time with a clear message.
+run "extra_mx_records_need_a_priority" {
+  command = plan
+  variables {
+    extra_records = {
+      mail = { name = "@", type = "MX", content = "mail.example.net" }
     }
   }
   expect_failures = [var.extra_records]

@@ -47,19 +47,35 @@ variable "dkim_records" {
 }
 
 variable "extra_records" {
-  description = "Any other TXT or CNAME records this domain needs (verification proofs, a mail-sending service), keyed by a label you choose. name is the host part: \"send.mail\" or \"@\" for the bare domain."
+  description = "Any other TXT, CNAME, MX or CAA records this domain needs (verification proofs, a mail-sending service, which certificate authorities may issue), keyed by a label you choose. name is the host part: \"send.mail\" or \"@\" for the bare domain. MX records also need a priority (lower is tried first). CAA records need a tag (issue, issuewild or iodef), with the authority or address as content."
   type = map(object({
-    name    = string
-    type    = string
-    content = string
-    ttl     = optional(number, 3600)
+    name     = string
+    type     = string
+    content  = string
+    ttl      = optional(number, 3600)
+    priority = optional(number)
+    tag      = optional(string)
   }))
   default = {}
 
   # Keyed by label, not name, because several records can share a name (e.g. three TXT proofs at "@").
   validation {
-    condition     = alltrue([for r in var.extra_records : contains(["CNAME", "TXT"], r.type)])
-    error_message = "Each extra record's type must be CNAME or TXT."
+    condition     = alltrue([for r in var.extra_records : contains(["CNAME", "TXT", "MX", "CAA"], r.type)])
+    error_message = "Each extra record's type must be CNAME, TXT, MX or CAA."
+  }
+
+  # A CAA tag says what the record controls: issue (who may issue certificates), issuewild
+  # (the same for wildcard certificates) or iodef (where to report violations). A typo would
+  # only fail at apply time. The ternary keeps contains() from receiving null when tag is unset.
+  validation {
+    condition     = alltrue([for r in var.extra_records : r.type != "CAA" || contains(["issue", "issuewild", "iodef"], r.tag == null ? "" : r.tag)])
+    error_message = "Each CAA extra record needs a tag of issue, issuewild or iodef."
+  }
+
+  # Cloudflare rejects an MX record without a priority, but only at apply time; catching it here is faster.
+  validation {
+    condition     = alltrue([for r in var.extra_records : r.type != "MX" || r.priority != null])
+    error_message = "Each MX extra record needs a priority, e.g. priority = 10."
   }
 }
 

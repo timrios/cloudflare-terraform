@@ -32,7 +32,7 @@ I also built this to learn Terraform properly. I wrote it one piece at a time an
 | Email policy | A DMARC record | `dmarc_policy`, `dmarc_report_email` |
 | Website | Proxied `www` and apex records, and a 301 redirect from `www` to the bare domain | none |
 | Security | Always Use HTTPS, minimum TLS version | `min_tls_version` |
-| Anything else | Verification proofs, a mail-sending service's CNAMEs | `extra_records` |
+| Anything else | Verification proofs, a mail-sending service's CNAMEs, extra MX records, CAA (which certificate authorities may issue certificates) | `extra_records` |
 
 Every input has a `description` and a `validation` block, so a typo fails at `plan` with a clear message instead of at `apply` with an API error.
 
@@ -80,7 +80,7 @@ You need Terraform 1.17 or newer, a Cloudflare account with the domain added, an
 ## Limits and next steps
 
 - `terraform plan` doesn't run in CI in this repo, on purpose: a plan needs a real zone, real state and a token, and this repo is public and holds none of them. It runs in the private repo that uses the module, on every pull request, with a read-only Cloudflare token and an Object Read only key for the state bucket, so CI can show a plan but can't change anything.
-- `extra_records` supports TXT and CNAME records only.
+- `extra_records` supports TXT, CNAME, MX and CAA records only. The tests use a mock provider, so they prove the module builds the right CAA data but not that Cloudflare accepts it; the first real CAA record is the live check.
 - The `www` and apex records point at a placeholder address (`100::`) and rely on Cloudflare's proxy to serve the site, which suits sites hosted on Cloudflare itself.
 - One module call manages one domain.
 
@@ -88,14 +88,15 @@ You need Terraform 1.17 or newer, a Cloudflare account with the domain added, an
 
 ### Pick up here
 
-The module, the example, remote state, unit tests and CI are built, published and green. Tagged `v0.1.0`; the next release is made when changes are ready (patch for a fix, minor for a feature, major for a breaking change). Plan-in-CI works in the private repo. Next: optionally a `v0.2.0` feature.
+The module, the example, remote state, unit tests and CI are built, published and green. Tagged `v0.1.0`; the next release is made when changes are ready (patch for a fix, minor for a feature, major for a breaking change). Plan-in-CI works in the private repo. `CAA` and `MX` support is built and tested (26 tests) but not yet committed or tagged. Next: commit, tag `v0.2.0`, then bump the private repo's `ref`.
 
 ### Not started
 
-- [ ] Optional: a `v0.2.0` feature (`CAA` and `MX` in `extra_records`), then bump the private repo's `ref`
+- [ ] Tag `v0.2.0`, then bump the private repo's `ref` (its CI plan should show only the version bump)
 
 ### Recently completed
 
+- [x] `extra_records` accepts `MX` (with a required priority) and `CAA` (with a tag, sent as structured data), tests written first (2026-11-16)
 - [x] `terraform plan` in CI, built in the private repo that uses the module: read-only Cloudflare token, Object Read only R2 key, `pull_request` trigger, never applies (2026-11-16)
 - [x] `terraform test`: 21 tests with a mock provider (behaviour and validation), run in CI (2026-11-16)
 - [x] Tagged `v0.1.0` so other repos can pin a version (2026-11-16)

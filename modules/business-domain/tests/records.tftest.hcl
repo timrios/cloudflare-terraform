@@ -64,6 +64,43 @@ run "extra_records_build_their_names" {
   }
 }
 
+# MX is the first type that needs more than name/content: the priority decides which server is tried first.
+run "extra_mx_record_carries_its_priority" {
+  command = plan
+
+  variables {
+    extra_records = {
+      mail = { name = "@", type = "MX", content = "mail.example.net", priority = 10 }
+    }
+  }
+
+  assert {
+    condition     = cloudflare_dns_record.extra["mail"].type == "MX" && cloudflare_dns_record.extra["mail"].priority == 10
+    error_message = "An MX extra record should keep its type and priority."
+  }
+}
+
+# CAA is sent to Cloudflare as structured data, not as a content string, so the module has to build it.
+run "extra_caa_record_is_built_as_data" {
+  command = plan
+
+  variables {
+    extra_records = {
+      caa = { name = "@", type = "CAA", content = "letsencrypt.org", tag = "issue" }
+    }
+  }
+
+  assert {
+    condition     = cloudflare_dns_record.extra["caa"].data.tag == "issue" && cloudflare_dns_record.extra["caa"].data.value == "letsencrypt.org"
+    error_message = "A CAA record should send its tag and value as data."
+  }
+
+  assert {
+    condition     = cloudflare_dns_record.extra["caa"].data.flags == 0
+    error_message = "CAA flags should be 0, the normal value."
+  }
+}
+
 run "security_settings_follow_the_inputs" {
   command = plan
 

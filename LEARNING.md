@@ -331,3 +331,26 @@ Added the first time each comes up.
 - *How would you give a client's CI the same setup?* Each client has its own repo, token limited to their zone, and their own secrets.
 
 **A limit I ran into:** GitHub enforces branch rules (require a pull request before merging) on private repos only on paid plans. On the free plan the rule saves but does nothing, so I deleted it rather than keep a false sense of safety. What protects the live domain is the credentials: CI's are read-only, and the read/write key never leaves my laptop. Two-factor on the GitHub account covers the remaining risk. *Interview line:* controls that depend on settings you can't enforce are weaker than limits built into the credentials.
+
+## Step 9 — `MX` and `CAA` in `extra_records` (v0.2.0)
+
+**What we did:** Let `extra_records` accept two more record types. MX got an optional `priority` field and a validation that requires it. CAA got an optional `tag` field (`issue`, `issuewild` or `iodef`) and a validation for it. For CAA the module builds the `data` block (`flags`, `tag`, `value`) and leaves `content` unset. We wrote the tests first each time and watched them fail before writing the code.
+
+**The idea, in my words:**
+- Tests came first so every check was proven to catch something before the code existed.
+- CAA is sent to Cloudflare as structured data, not a content string, so it is handled differently from TXT, CNAME and MX.
+- `optional` means a value may or may not be given. `computed` means the provider fills the value in when it isn't given. Setting `content = null` for CAA says "I'm not setting this", and the provider fills it in from `data`.
+
+**Corrections and things worth remembering:**
+- **A false green:** the two validation tests passed before the code existed, but only because MX and CAA were still blocked by the type check. A test that passes can pass for the wrong reason. Break the rule on purpose and watch the test fail to know it guards something.
+- Terraform silently drops object attributes the type doesn't declare, so `priority = 10` did nothing until the field was declared.
+- Terraform stops a test file at the first failing run and skips the rest, so one failure can hide others.
+- The tests use a mock provider: they prove the module builds the right data, not that Cloudflare accepts it. The first real CAA record is the live check.
+- Writing `r.type != "MX" || r.priority != null` makes a rule apply to one type only. Without the first half, every TXT and CNAME would fail.
+
+**Questions an interviewer might ask:**
+- *Why write the test before the code?* To see it fail for the right reason; a test you've never seen fail may not test anything.
+- *A test passes the first time you run it. What do you check?* That it isn't passing for a different reason, by breaking the rule on purpose.
+- *What do `optional` and `computed` mean on a provider attribute?* Optional: you may set it. Computed: the provider sets it when you don't. Both together mean "set it or let the provider decide".
+- *Why does CAA need a `data` block when MX uses `content`?* The provider models CAA's parts (flags, tag, value) as structured data; MX is a hostname plus a separate priority.
+- *Why a minor version (v0.2.0) and not a patch?* New inputs are a feature; existing callers are unaffected, so it isn't a breaking change.

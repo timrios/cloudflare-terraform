@@ -6,11 +6,15 @@ resource "cloudflare_dns_record" "extra" {
 
   zone_id = var.zone_id
   # "@" is DNS shorthand for the bare domain; anything else is a prefix of it.
-  name    = each.value.name == "@" ? var.domain : "${each.value.name}.${var.domain}"
-  type    = each.value.type
-  content = each.value.content
-  ttl     = each.value.ttl
-  proxied = false
+  name = each.value.name == "@" ? var.domain : "${each.value.name}.${var.domain}"
+  type = each.value.type
+  # CAA is sent as structured data instead of a content string, so content is left unset for it.
+  content = each.value.type == "CAA" ? null : each.value.content
+  data    = each.value.type == "CAA" ? { flags = 0, tag = each.value.tag, value = each.value.content } : null
+  # Null for TXT and CNAME, which the provider ignores; only MX uses it.
+  priority = each.value.priority
+  ttl      = each.value.ttl
+  proxied  = false
 }
 
 # These six records used to be single resources in this module; they now come from the
