@@ -268,3 +268,22 @@ Added the first time each comes up.
 - *What does `moved` do, and what happens without it?* It renames a resource in state. Without it Terraform destroys the old record and creates a new one.
 - *You deleted a secret file in a later commit. Is the repo safe?* No: history keeps it. Revoke the credential first, then clean the history.
 - *How would you check a module has no hard-coded values from one customer?* Search it for that customer's domain and tokens, and plan it against a second domain.
+
+## Step 6b — Publishing: keeping real data out, and versioning
+
+**What we did:** Before publishing, scanned every file and every commit for secrets and personal data. Moved my real domain's config out of this repo into a separate private repo (`dns-live`, one folder per domain), made the example here a fictional `example.com`, reset this repo to one clean commit so the old history (with my real records in it) never went public, added an MIT license, created the GitHub repo from the command line, watched the first CI run pass, and tagged `v0.1.0`. The private repo now reads the module from the tag.
+
+**The idea, in my words:**
+- Deleting a file in a later commit doesn't remove it. Anyone can read old commits, so history is what leaks. If a secret ever got committed, revoke it first, then clean the history.
+- A module should stay clean: no real values. A domain's specifics come in through its inputs, so a second domain is a second caller of the module, kept in a private repo, not in the public `examples/` folder.
+- One directory per domain, each with its own state, so a change to one can't accidentally touch another. This isolation is only as strong as one line, the state key in `backend.tf`, so the wrapper script refuses to run if the key doesn't match the folder name.
+- Terraform matches code to real records by resource address and the state file (found through the R2 key), not by folder paths. That's why moving folders didn't change anything.
+- A tag is a fixed name on one commit, and it never moves. Pinning `?ref=v0.1.0` means a change to the module can't alter live DNS until I bump the version on purpose, read the plan, and apply. Rolling back means setting the old tag again.
+- Versions are `MAJOR.MINOR.PATCH`: patch for a fix, minor for a new feature that doesn't break anyone, major for a change that forces callers to edit their config. Below `1.0.0` means the inputs are still settling.
+
+**Questions an interviewer might ask:**
+- *Why is your repo's history only one commit?* The development history contained real records, so I published a clean copy and kept the full history in a private repo.
+- *Why keep the live config in a separate repo from the module?* The module is reusable and public; the live config holds real values, state and credentials, and it has a different release rhythm.
+- *Why pin a module version?* So upgrades are deliberate and reviewable, and rollback is one line.
+- *What happens if two folders share a state key?* Each plan sees the other's resources as unmanaged and proposes destroying them.
+- *What does a major version bump tell a user?* Their config must change before they can upgrade.

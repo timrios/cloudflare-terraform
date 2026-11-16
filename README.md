@@ -86,15 +86,15 @@ You need Terraform 1.17 or newer, a Cloudflare account with the domain added, an
 
 ### Pick up here
 
-The module, the example, remote state and CI are built, published, and the first CI run is green. Next: tag `v0.1.0` so other repos can pin a version.
+The module, the example, remote state and CI are built, published, and the first CI run is green. Tagged `v0.1.0`; the next release is made when changes are ready (patch for a fix, minor for a feature, major for a breaking change).
 
 ### Not started
 
-- [ ] Tag `v0.1.0` so other repos can pin a version
 - [ ] Later: `terraform plan` in CI with a read-only token as a GitHub secret
 
 ### Recently completed
 
+- [x] Tagged `v0.1.0` so other repos can pin a version (2026-11-16)
 - [x] Published on GitHub; first CI run passed (2026-11-16)
 - [x] Real domain moved out: the live config now lives in a separate private repo that uses this module, and the example here is fictional (2026-11-16)
 - [x] Module made fully generic: domain-specific records moved out into an `extra_records` input keyed by label, with `moved` blocks so the plan stayed at zero changes (2026-11-16)
