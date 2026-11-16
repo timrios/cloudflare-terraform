@@ -309,3 +309,23 @@ Added the first time each comes up.
 - *What does `expect_failures` do, and why have it?* It asserts a validation rejects a bad value, so a weakened check gets caught.
 - *Why did you run the tests in CI, and why is it safe?* They need no secrets and no state, so anyone's pull request can run them.
 - *Why is `none` your most important preset test?* Choosing it must create no MX records. Wrongly deleting them would stop a domain's email.
+
+## Step 8 — `terraform plan` in CI, safely
+
+**What we did:** Added a workflow to the private repo that uses the module (not this public one, which has no real zone, state or token). On every pull request it runs `terraform plan` against the real state and shows the result on the run page. It uses a new read-only Cloudflare token and an R2 key with Object Read only on the state bucket. It never applies. First run: "No changes", in 15 seconds.
+
+**The idea, in my words:**
+- My laptop key can change things, and I use it on purpose. A key in CI runs automatically with nobody watching, so it gets read-only access: least privilege, so a leak or a mistake can't change anything.
+- Nothing changes my domain when the module repo is updated. The two repos are connected only by the `?ref=` version line. CI in the private repo runs when I open a pull request there.
+- If someone edited the workflow to run `apply`, the read-only credentials would reject the writes. What a job can do is limited by its credentials, not by what the workflow file says. A malicious workflow could still read the secrets, so a review rule before merging is a good second guard.
+- Secrets are available to a job but unreadable afterwards, even to me. They can only be replaced.
+- I should get the permission level right when creating a token. I first made an R2 token, which shows three values, where the DNS token needed from the profile page's API Tokens shows one.
+- For clients: they own the account, and I get invited as a member with a limited role and make my own tokens, so they can remove me in one click and never handle a secret. One token per client, limited to that zone.
+
+**Questions an interviewer might ask:**
+- *Why does CI use a different credential from your laptop?* Least privilege: CI runs unattended, so it can only read.
+- *Why `plan -lock=false` in CI?* The read-only key can't write the lock file, and a plan changes nothing.
+- *Why `pull_request` and not `pull_request_target`?* The second gives secrets to code from forks.
+- *Why pass secrets through `env:` instead of into the script?* A secret's content then can't be interpreted as a shell command.
+- *What stops a modified workflow from applying changes?* The credentials are read-only, so the API refuses.
+- *How would you give a client's CI the same setup?* Each client has its own repo, token limited to their zone, and their own secrets.

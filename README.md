@@ -79,7 +79,7 @@ You need Terraform 1.17 or newer, a Cloudflare account with the domain added, an
 
 ## Limits and next steps
 
-- `terraform plan` doesn't run in CI yet. It needs a read-only token and state access, so I want to design that carefully, with a GitHub secret and no plans from forks.
+- `terraform plan` doesn't run in CI in this repo, on purpose: a plan needs a real zone, real state and a token, and this repo is public and holds none of them. It runs in the private repo that uses the module, on every pull request, with a read-only Cloudflare token and an Object Read only key for the state bucket, so CI can show a plan but can't change anything.
 - `extra_records` supports TXT and CNAME records only.
 - The `www` and apex records point at a placeholder address (`100::`) and rely on Cloudflare's proxy to serve the site, which suits sites hosted on Cloudflare itself.
 - One module call manages one domain.
@@ -88,14 +88,15 @@ You need Terraform 1.17 or newer, a Cloudflare account with the domain added, an
 
 ### Pick up here
 
-The module, the example, remote state and CI are built, published, and the first CI run is green. Tagged `v0.1.0`; the next release is made when changes are ready (patch for a fix, minor for a feature, major for a breaking change).
+The module, the example, remote state, unit tests and CI are built, published and green. Tagged `v0.1.0`; the next release is made when changes are ready (patch for a fix, minor for a feature, major for a breaking change). Plan-in-CI works in the private repo. Next: optionally a `v0.2.0` feature.
 
 ### Not started
 
-- [ ] Later: `terraform plan` in CI with a read-only token as a GitHub secret
+- [ ] Optional: a `v0.2.0` feature (`CAA` and `MX` in `extra_records`), then bump the private repo's `ref`
 
 ### Recently completed
 
+- [x] `terraform plan` in CI, built in the private repo that uses the module: read-only Cloudflare token, Object Read only R2 key, `pull_request` trigger, never applies (2026-11-16)
 - [x] `terraform test`: 21 tests with a mock provider (behaviour and validation), run in CI (2026-11-16)
 - [x] Tagged `v0.1.0` so other repos can pin a version (2026-11-16)
 - [x] Published on GitHub; first CI run passed (2026-11-16)
