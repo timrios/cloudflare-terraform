@@ -1,0 +1,32 @@
+# Terraform's downloaded providers and modules; recreated by `terraform init`
+.terraform/
+
+# State can hold sensitive values and belongs to one machine or the remote backend, never git
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+
+# Variable files hold the API token and real values. Commit only *.tfvars.example
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Local overrides
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Backend settings with the Cloudflare account ID in the endpoint. Commit only the .example
+backend.hcl
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# The provider lock file (.terraform.lock.hcl) IS committed: it pins exact provider builds
+
+.DS_Store

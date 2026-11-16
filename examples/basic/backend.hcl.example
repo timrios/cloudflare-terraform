@@ -1,0 +1,7 @@
+# Copy to backend.hcl (git-ignored) and fill in your own values.
+# bucket: the R2 bucket you created for state.
+# endpoint: your Cloudflare account ID is on the R2 overview page (right-hand column).
+bucket = "<YOUR_BUCKET_NAME>"
+endpoints = {
+  s3 = "https://<ACCOUNT_ID>.r2.cloudflarestorage.com"
+}

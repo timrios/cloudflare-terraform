@@ -1,0 +1,50 @@
+name: Terraform checks
+
+# Runs on every push and on pull requests. These checks need no Cloudflare
+# token and no state, so CI never touches the real domain.
+on:
+  push:
+  pull_request:
+
+# The workflow only reads the code; give it no more access than that.
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          # Same range as required_version in versions.tf, so CI tests what
+          # we run locally.
+          terraform_version: "~> 1.17"
+
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.66.0
+
+      # Fails if any file isn't formatted. It checks and does not rewrite.
+      - name: Format check
+        run: terraform fmt -check -recursive
+
+      # -backend=false: download providers only. CI has no access to the R2
+      # state bucket and must not.
+      - name: Validate the module
+        working-directory: modules/business-domain
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - name: Validate the example
+        working-directory: examples/basic
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - name: Lint
+        run: |
+          tflint --init
+          tflint --recursive
