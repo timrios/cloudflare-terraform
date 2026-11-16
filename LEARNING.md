@@ -319,7 +319,7 @@ Added the first time each comes up.
 - Nothing changes my domain when the module repo is updated. The two repos are connected only by the `?ref=` version line. CI in the private repo runs when I open a pull request there.
 - If someone edited the workflow to run `apply`, the read-only credentials would reject the writes. What a job can do is limited by its credentials, not by what the workflow file says. A malicious workflow could still read the secrets, so a review rule before merging is a good second guard.
 - Secrets are available to a job but unreadable afterwards, even to me. They can only be replaced.
-- I should get the permission level right when creating a token. I first made an R2 token, which shows three values, where the DNS token needed from the profile page's API Tokens shows one.
+- Cloudflare has two kinds of token. The DNS token comes from My Profile, API Tokens and shows one value. An R2 token (storage, for state) comes from R2, Manage API Tokens and shows three: a token value plus an Access Key ID and Secret. I first made the wrong kind, and the three values were the clue.
 - For clients: they own the account, and I get invited as a member with a limited role and make my own tokens, so they can remove me in one click and never handle a secret. One token per client, limited to that zone.
 
 **Questions an interviewer might ask:**
