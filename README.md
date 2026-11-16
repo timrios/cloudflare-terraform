@@ -40,8 +40,9 @@ Every input has a `description` and a `validation` block, so a typo fails at `pl
 
 ```
 modules/business-domain/   the reusable module
+modules/business-domain/tests/   21 unit tests (terraform test, fake provider)
 examples/basic/            a fictional business (example.com) showing every input
-.github/workflows/         format, validate and lint checks on every push
+.github/workflows/         format, validate, lint and test on every push
 LEARNING.md                what each step taught me, in my own words
 ```
 
@@ -55,7 +56,8 @@ The module contains nothing specific to one business. Anything particular to a d
 - **`extra_records` is keyed by a label I choose, not the record name.** Several DNS records share a name (three TXT proofs at the bare domain), and `for_each` keys must be unique.
 - **`email_provider` has no default, but `dmarc_policy` does.** A forgotten email provider silently becoming `none` would delete the MX records and stop the domain's mail, so it must be chosen. `dmarc_policy` defaults to `none`, which only reports and never affects delivery. Tightening it to `reject` is a deliberate step.
 - **State lives in a private Cloudflare R2 bucket with locking.** One shared copy survives a lost laptop, and the lock stops two runs overwriting each other. Backend settings go in a git-ignored `backend.hcl`, since a backend block can't read variables.
-- **CI never touches state or the API token.** It runs `terraform fmt -check`, `validate` and `tflint` with `init -backend=false`. If CI could reach the state bucket, anyone who got code into a pull request could read or change real infrastructure.
+- **The module has unit tests that can't reach Cloudflare.** `terraform test` runs against a mock provider: 11 tests check what the module builds (record counts per mail provider, names, DMARC content, the redirect), and 10 check that every bad input is rejected, so a weakened validation fails a test.
+- **CI never touches state or the API token.** It runs `terraform fmt -check`, `validate`, `tflint` and the tests with `init -backend=false`. If CI could reach the state bucket, anyone who got code into a pull request could read or change real infrastructure.
 - **Versions are pinned.** Terraform `~> 1.17` and the Cloudflare provider `~> 5.29`, with the lock file committed, so a different version can't quietly change a plan. Provider v5 renamed many resources compared with v4.
 - **The API token is scoped to one zone** (DNS edit, zone settings edit, zone read, redirect edit) and lives in a git-ignored `.env`.
 
@@ -94,6 +96,7 @@ The module, the example, remote state and CI are built, published, and the first
 
 ### Recently completed
 
+- [x] `terraform test`: 21 tests with a mock provider (behaviour and validation), run in CI (2026-11-16)
 - [x] Tagged `v0.1.0` so other repos can pin a version (2026-11-16)
 - [x] Published on GitHub; first CI run passed (2026-11-16)
 - [x] Real domain moved out: the live config now lives in a separate private repo that uses this module, and the example here is fictional (2026-11-16)

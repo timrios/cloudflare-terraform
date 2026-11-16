@@ -27,6 +27,8 @@ backend.hcl
 .env.*
 !.env.example
 
-# The provider lock file (.terraform.lock.hcl) IS committed: it pins exact provider builds
+# The provider lock file (.terraform.lock.hcl) IS committed: it pins exact provider builds,
+# but only the root configuration's (examples/basic). A module leaves versions to its caller.
+modules/business-domain/.terraform.lock.hcl
 
 .DS_Store

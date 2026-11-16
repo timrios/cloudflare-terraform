@@ -38,6 +38,12 @@ jobs:
           terraform init -backend=false
           terraform validate
 
+      # Unit tests against a fake Cloudflare provider (mock_provider): no token, no state,
+      # no network calls to the API. Init already ran in the step above.
+      - name: Test the module
+        working-directory: modules/business-domain
+        run: terraform test
+
       - name: Validate the example
         working-directory: examples/basic
         run: |

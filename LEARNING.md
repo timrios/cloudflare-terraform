@@ -31,6 +31,10 @@ Added the first time each comes up.
 | Address | A resource's identity in state, such as `module.my_domain.cloudflare_dns_record.spf_txt`. Moving code into a module changes it |
 | `moved` block | Tells Terraform a resource only changed address, so it renames the state entry instead of destroying and recreating the real object |
 | Saved plan | `plan -out=file`, then `apply file`: applies exactly the reviewed actions, with no prompt |
+| `terraform test` | Runs `.tftest.hcl` files: each `run` block gives the module inputs and asserts claims about the result |
+| `mock_provider` | A fake provider for tests, so they need no token and never contact the real API |
+| `expect_failures` | In a test, says a run should fail on a named validation. The test passes only if it does |
+| List vs tuple | A list holds one type; a tuple is a fixed sequence that can mix types. A written-out `[...]` is a tuple, and `==` between the two is false |
 
 ## Step 1 — Setup
 
@@ -287,3 +291,21 @@ Added the first time each comes up.
 - *Why pin a module version?* So upgrades are deliberate and reviewable, and rollback is one line.
 - *What happens if two folders share a state key?* Each plan sees the other's resources as unmanaged and proposes destroying them.
 - *What does a major version bump tell a user?* Their config must change before they can upgrade.
+
+## Step 7 — Testing the module with `terraform test`
+
+**What we did:** Added three test files in `modules/business-domain/tests/`: mail presets (provider by provider, SPF, DKIM), records (DMARC, `extra_records`, zone settings, the redirect, the `record_names` output) and validation (one bad input per validated variable). 21 tests in all. They run in CI.
+
+**The idea, in my words:**
+- The module is a shared recipe, and my live domain calls it from a private repo. A test runs against the recipe alone, with a fake provider, so it can't touch a real domain. Separately, the live domain pins a version tag, so a change to the module can't reach it until I bump the tag on purpose.
+- At plan time Terraform knows what I wrote in config (counts, names, contents) but not what the API assigns (record IDs). So tests assert on things the module decides. The number of MX records comes from `email_provider`, not from Cloudflare.
+- A `validation` block protects the infrastructure from bad input. An `expect_failures` test protects the validation: if someone weakens a check, the test fails.
+- One run, one bad value, everything else valid, so a pass can only mean that one check fired.
+- A test of mine failed for a real reason: `sort()` returns a list, my expected value was a tuple, and `==` treats them as different. The fix was `tolist()`. A failing test is either a wrong test or a wrong module, and it takes reading to tell which.
+
+**Questions an interviewer might ask:**
+- *How do you test Terraform without touching real infrastructure?* `mock_provider` with `command = plan`: nothing is created and no API is called.
+- *What can't a plan-time test check?* Anything the API fills in, like IDs. Those are "known after apply".
+- *What does `expect_failures` do, and why have it?* It asserts a validation rejects a bad value, so a weakened check gets caught.
+- *Why did you run the tests in CI, and why is it safe?* They need no secrets and no state, so anyone's pull request can run them.
+- *Why is `none` your most important preset test?* Choosing it must create no MX records. Wrongly deleting them would stop a domain's email.
