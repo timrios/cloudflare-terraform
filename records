@@ -87,7 +87,10 @@ done
 # state from the bucket and changes nothing. The ${arr[@]+...} form keeps an empty list from being
 # an "unbound variable" error in the bash 3.2 that macOS ships.
 state_ids="$("$root/tf" ${tf_args[@]+"${tf_args[@]}"} "$name" state pull |
-  jq '[.resources[] | select(.type == "cloudflare_dns_record") | .instances[].attributes.id]')"
+  jq '[.resources[]? | select(.type == "cloudflare_dns_record") | .instances[].attributes.id]')"
+# A brand-new domain has no state yet, and `state pull` then prints nothing at all. Treat that as
+# "Terraform manages no records", so every record is listed as NOT IN STATE: the list to import.
+state_ids="${state_ids:-[]}"
 
 # A record in Cloudflare whose ID isn't in the state is invisible to plan and apply.
 echo "$records" | jq -r --argjson ids "$state_ids" '

@@ -66,36 +66,111 @@ The module contains nothing specific to one business. Anything particular to a d
 
 ## Using it
 
-You need Terraform 1.17 or newer, a Cloudflare account with the domain added, an API token limited to that zone, and an R2 bucket for state.
+Each domain you manage gets its own folder and its own state file (Terraform's record of what it created), so a change to one domain can't touch another. Three small scripts do the routine work: `./new-domain` makes a domain's folder, `./tf` runs Terraform in it with your credentials loaded, and `./records` shows what Cloudflare actually holds.
 
-1. Copy `.env.example` to `.env` and fill in the Cloudflare token and the R2 access keys.
-2. In `examples/basic/`, copy `terraform.tfvars.example` to `terraform.tfvars` (your zone ID) and `backend.hcl.example` to `backend.hcl` (your bucket and account ID). Both copies are git-ignored.
-3. Edit `main.tf` for your domain (the example uses `example.com`), then run:
+### What you need first
 
-```
-./tf example init -backend-config=backend.hcl
-./tf example plan
-./tf example apply
-```
+- Terraform 1.17 or newer. `curl` and `jq` are needed only for `./records`.
+- A Cloudflare account with your domain added. Adding it creates the **zone** (Cloudflare's container for the domain's DNS records); the module doesn't create it for you.
+- A Cloudflare **API token** limited to that zone, with permission to edit DNS, edit zone settings, read the zone and edit redirects.
+- An **R2 bucket** for state, with an R2 access key pair. Keeping state in a bucket means one shared copy that survives a lost laptop.
 
-`./tf <folder>` is a small wrapper that loads the token from `.env` and runs Terraform in that folder, so the token never appears in shell history. `example` is the folder in `examples/basic/`; folders made by `./new-domain` are named by their folder (`./tf acme-shop plan`), and `--dir <path>` points at a folder in your own private repo. It refuses to run when the folder name and the state key in `backend.tf` disagree, so two domains can never share one state.
+### Step by step
 
-## Managing more than one domain
-
-Three small scripts turn the module into a workflow. Each domain gets its own folder and its own state file, so a change to one can't touch another.
+**1. Clone the repo and set your credentials.**
 
 ```
-./new-domain acme-shop acme.com google      # make the folder (email provider: none, icloud, google or microsoft)
+git clone https://github.com/timrios/cloudflare-terraform.git
+cd cloudflare-terraform
+cp .env.example .env     # then fill in the Cloudflare token and the R2 keys
+```
+
+`.env` is git-ignored, so the token never reaches git or your shell history.
+
+**2. Make a folder for your domain.**
+
+```
+./new-domain acme-shop acme.com google
+```
+
+The three values are:
+
+| Value | What it is | What it controls |
+| --- | --- | --- |
+| `acme-shop` | A name you choose for the folder | The folder's name, and the name of this domain's state file. Lowercase letters, digits and dashes only. |
+| `acme.com` | Your real domain | The domain the records are created for. |
+| `google` | Who handles this domain's email | Which **MX** and **SPF** records are created (table below). |
+
+Email is what most often goes wrong when a domain moves, so `email_provider` is deliberately required, with no default. **MX records** say where incoming mail is delivered. **SPF** is a record that lists which servers may send mail as your domain. Pick the one that actually hosts your mail:
+
+| `email_provider` | Use it when | The module creates |
+| --- | --- | --- |
+| `none` | The domain has no email, or you manage its email records yourself | No MX and no SPF |
+| `icloud` | Mail is hosted by Apple (iCloud+ custom domain) | 2 MX records and an SPF record |
+| `google` | Mail is hosted by Google Workspace | 5 MX records and an SPF record |
+| `microsoft` | Mail is hosted by Microsoft 365 | 1 MX record (named from your domain) and an SPF record |
+
+Whatever you pick, the module also creates a **DMARC** record, which tells receiving mail servers what to do with mail that claims to be from your domain but fails its checks. The default policy only reports and never affects delivery. **DKIM** is a signing key unique to your account, so your mail provider gives it to you and you add it yourself (step 4). If you're unsure, start with `none`: it creates no mail records, so it can't redirect your mail anywhere.
+
+The script creates `domains/acme-shop/` with the boilerplate, a short `main.tf`, and the state key already set to `acme-shop/terraform.tfstate`. It prints the next steps. It refuses a bad name, an unknown provider or a folder that already exists, and it never copies a zone ID or token.
+
+**3. Add your own values.** Two files in the new folder, both git-ignored:
+
+- `terraform.tfvars`: copy `terraform.tfvars.example` and put in your **zone ID** (Cloudflare dashboard, your domain's Overview page, right-hand column).
+- `backend.hcl`: copy `backend.hcl.example` and put in your R2 bucket name and Cloudflare account ID.
+
+**4. Describe your domain in `main.tf`.** Change the placeholder `dmarc_report_email` to an address you read, since DMARC reports are sent there. Then add `dkim_records` (from your mail provider) and `extra_records` (verification TXT records, a mail-sending service's CNAMEs and so on). [`examples/basic/main.tf`](examples/basic/main.tf) shows every input.
+
+**5. Connect to state and preview.**
+
+```
 ./tf acme-shop init -backend-config=backend.hcl
 ./tf acme-shop plan
-./records acme-shop                          # every record Cloudflare holds, and whether Terraform manages it
 ```
 
-- **`./new-domain`** copies the boilerplate from `examples/basic/`, writes a minimal `main.tf`, and sets the folder's state key to `<folder>/terraform.tfstate`. It refuses a bad name, an unknown email provider or a folder that already exists, and it never copies a zone ID or token. Afterwards you put your zone ID in `terraform.tfvars` and your bucket in `backend.hcl` (the script prints the steps), change the placeholder `dmarc_report_email` to an address you read, and add the domain's own records.
-- **`./tf <folder> ...`** loads credentials from `.env`, then runs Terraform in that folder. A folder's own `.env` overrides the shared one, so each domain can have a token limited to its own zone. It refuses to run if the state key doesn't match the folder name.
-- **`./records <folder>`** is read-only. It lists the zone's records from Cloudflare's API and flags `NOT IN STATE`, a record Terraform doesn't know about (a `plan` stays silent about it), and `IN STATE ONLY`, a record Terraform expects that is gone. It needs `curl` and `jq`.
+`init` downloads the provider and connects to the bucket. `plan` is a preview and changes nothing. Read it: if it shows anything **destroyed** or **replaced**, stop and work out why before going on. If your domain already has records in Cloudflare, read the next section before you apply.
 
-**Keep real domains out of this repo.** `./new-domain` writes to `domains/`, which `.gitignore` excludes, and a test fails if anything under it is committed. To keep your domains under version control, use a private repo of your own and point the scripts at it:
+**6. Apply, then check.**
+
+```
+./tf acme-shop apply
+./records acme-shop
+```
+
+`./records` lists every record Cloudflare holds for the zone; each should be marked `managed`. Change the nameservers at your registrar last, once the records are right, and send a test email both ways.
+
+### If your domain already has records
+
+Cloudflare scans a new zone and copies in the records it finds, and a domain that already works has mail and website records. Terraform doesn't know about those records, so the first `plan` lists them as "create", and `apply` fails with "already exists". The fix is to **import** them: tell Terraform that the record already exists and which block of your config describes it.
+
+1. Run `init` as in step 5, then `./records acme-shop`. With nothing imported yet, every record shows `NOT IN STATE`. Note each record's ID.
+2. In the domain's folder, create `imports.tf` with one block per record. Each needs the record's address and its ID, written `<zone_id>/<record_id>`:
+
+   ```
+   import {
+     to = module.acme_shop.cloudflare_dns_record.spf[0]
+     id = "<zone_id>/<record_id>"
+   }
+   ```
+
+   The module is named after the folder with dashes turned into underscores (`acme-shop` becomes `acme_shop`). The record's address goes after `module.acme_shop.`; these are the names inside the module:
+
+   | Record | Address |
+   | --- | --- |
+   | An MX record | `cloudflare_dns_record.mx["<mail host>"]`, for example `["aspmx.l.google.com"]` |
+   | SPF | `cloudflare_dns_record.spf[0]` |
+   | DKIM | `cloudflare_dns_record.dkim["<key from dkim_records>"]` |
+   | DMARC | `cloudflare_dns_record.dmarc_txt` |
+   | One from `extra_records` | `cloudflare_dns_record.extra["<its label>"]` |
+
+3. Run `plan`. Each import shows as "will be imported", and a record whose config matches the live one needs no change. If the plan wants to **update** an imported record, your config differs from what's live. Decide which is right before applying, especially for mail records.
+4. Apply. Then run `./records` again: every record should now be `managed`. The `import` blocks can stay or be deleted; they do nothing once the record is in state.
+
+The alternative is deleting the scanned record in the dashboard and letting Terraform recreate it, which leaves a short gap. Importing is safer for any record that carries live mail.
+
+### Keeping real domains out of this repo
+
+`./new-domain` writes to `domains/`, which `.gitignore` excludes, and a test fails if anything under it is committed. This repo is meant to stay generic. To keep your own domains under version control, use a private repo of your own and point the scripts at it:
 
 ```
 ./new-domain --dir ~/my-dns --module-source "git::https://github.com/<you>/cloudflare-terraform.git//modules/business-domain?ref=v0.2.0" acme-shop acme.com google
@@ -103,6 +178,14 @@ Three small scripts turn the module into a workflow. Each domain gets its own fo
 ```
 
 `--module-source` is required with `--dir` because Terraform only accepts a relative module path that starts with `./` or `../`, and a folder outside this repo has no fixed path to the module.
+
+### The scripts
+
+- **`./new-domain [--dir PATH] [--module-source SOURCE] <folder> <domain> <email_provider>`** makes the folder, as above.
+- **`./tf [--dir PATH] <folder> <terraform command>`** loads credentials from `.env`, then runs Terraform in that folder. A folder's own `.env` overrides the shared one, so each domain can have a token limited to its own zone. It refuses to run if the state key doesn't match the folder name, so two domains can never share one state.
+- **`./records [--dir PATH] <folder>`** is read-only. It flags `NOT IN STATE` (a record Terraform doesn't know about, so a `plan` stays silent about it) and `IN STATE ONLY` (a record Terraform expects that is gone from Cloudflare).
+
+`examples/basic/` is the fictional `example.com` the repo's tests and CI validate, and the template `./new-domain` copies from. It isn't meant to be applied as it is, because `example.com` isn't yours. `./tf example ...` runs Terraform in it if you want to experiment.
 
 ## Limits and next steps
 
@@ -138,6 +221,7 @@ Order: `new-domain` first (most to generalise), then `tf`, then `records`, then 
 
 ### Recently completed
 
+- [x] README "Using it" rewritten as one newcomer guide: what each `new-domain` argument controls (including what each `email_provider` creates), a "domain that already has records" section with `import` blocks (addresses checked with `terraform validate`), and `./records` fixed for a domain whose state is still empty (2026-11-17)
 - [x] README section "Managing more than one domain": the three scripts, `--dir`, and keeping real domains out of this repo (2026-11-17)
 - [x] `shellcheck` in CI and `tests/scripts.sh` (18 checks: new-domain good run and refusals, tf key check, generated config validates, nothing tracked under `domains/`) (2026-11-17)
 - [x] Public `records` (same folder rules as `tf`, checks for `curl`/`jq`, a token and a zone ID; on a real zone its output was identical to the private script's) (2026-11-17)

@@ -446,3 +446,5 @@ Added the first time each comes up.
 - macOS ships bash 3.2, where expanding an empty array under `set -u` is an error; `${arr[@]+"${arr[@]}"}` avoids it.
 - `A && B || C` isn't if-then-else (C runs if B fails); shellcheck caught it. A small `check` helper expresses "this must succeed" cleanly.
 - `wc -l` on macOS pads its output with spaces, so comparing it to `0` as a string gave a false alarm during the history check.
+- A newcomer's first look at a domain is a plan with no state yet. `state pull` prints nothing then, which broke `./records` with a confusing jq error until it treated "nothing" as "no records managed". Writing the walkthrough for a stranger found a bug that using it as the author never would.
+- A documented command is a claim: the `import` addresses in the README were checked by running `terraform validate` on them (and a wrong one is rejected), not just written from memory.
