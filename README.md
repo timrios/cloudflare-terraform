@@ -90,6 +90,26 @@ You need Terraform 1.17 or newer, a Cloudflare account with the domain added, an
 
 The module, the example, remote state, unit tests and CI are built, published and green. Tagged `v0.1.0`; the next release is made when changes are ready (patch for a fix, minor for a feature, major for a breaking change). Plan-in-CI works in the private repo. Tagged `v0.2.0` (adds `MX` and `CAA` to `extra_records`, 26 tests); the private repo now uses it and its plan shows no changes. The second domain is set up in the private repo (its own folder, applied 2026-11-16 to 17; SPF, DKIM and DMARC pass). Apple's iCloud setup changed four records behind Terraform's back, so they were refreshed out of the state and imported again; the plan shows no changes. The record lister (`./records`) and the new-domain script (`./new-domain`) are built. Next: put the project on timrios.dev (portfolio), then the remaining task below. Pushed and scrubbed of real domain names on 2026-11-17. Terraform is for Tim's own domains; client domains use the launch checklist, not this module, unless the timing and the client's needs justify it (decided 2026-11-16).
 
+### In progress
+
+**Public versions of the helper scripts** (decided 2026-11-17), so a newcomer who finds this repo gets the whole workflow and not just the module. Design:
+
+- No personal values. `new-domain` copies from `examples/basic/` (the fictional `example.com` folder), not a real domain's folder.
+- A choice of module source: the relative path `../../modules/business-domain` by default, or a `--module-source` option for the GitHub URL and tag form the private repo uses.
+- `records` and `tf` hold nothing personal, so they need generalising (folder per domain, not just `examples/basic`) plus docs and a matching `.env.example`.
+- Safety: real domains must not end up committed in this public repo. `.gitignore` already blocks `tfvars`, `.env` and state; the script also warns, or creates the folder outside the repo, and the docs say real domains go in your own private repo.
+- Quality bar: `shellcheck` in CI, plus a test that runs `new-domain` in a temp folder and checks the state key is set and that a bad name, an existing folder and an unknown email provider are refused.
+- One true copy: this repo becomes the canonical version; the private repo's scripts later point at it (decide how when we get there).
+
+Order: `new-domain` first (most to generalise), then `tf`, then `records`, then the tests and CI, then the README section.
+
+- [ ] Public `new-domain` (from `examples/basic/`, `--module-source`, safety warning)
+- [ ] Public `tf` that takes a folder name, like the private one
+- [ ] Public `records`
+- [ ] `shellcheck` in CI and a test script for `new-domain`
+- [ ] README section for newcomers: how to use the three scripts with your own domain
+- [ ] Decide how the private repo uses the public scripts (one copy, not two)
+
 ### Not started
 
 - [ ] Judge whether clients should get Terraform. The second domain was started the evening of 2026-11-16 and finished 2026-11-17, with the Apple detour (a real-world drift problem) taking a good part of it; no exact time was kept
