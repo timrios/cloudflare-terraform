@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# Lists every DNS record Cloudflare holds for one domain's zone: type, name, content, ID, and
+# whether Terraform manages it. Read-only: it only asks, it never changes anything.
+#
+# Needs: curl, jq, and the same .env and folder layout as ./tf.
+# Usage: ./records [--dir PATH] <folder>
+#   ./records example
+#   ./records acme-shop
+#   ./records --dir ~/my-dns acme-shop
+set -euo pipefail
+
+root="$(cd "$(dirname "$0")" && pwd)"
+usage="Usage: ./records [--dir PATH] <folder>   e.g. ./records acme-shop"
+
+for tool in curl jq column; do
+  if ! command -v "$tool" > /dev/null; then
+    echo "$tool is required but not installed." >&2
+    exit 1
+  fi
+done
+
+# Same folder rules as ./tf. tf_args is passed along so the state lookup below uses the same folder.
+base="$root/domains"
+tf_args=()
+if [ "${1:-}" = "--dir" ]; then
+  base="${2:?--dir needs a path}"
+  tf_args=(--dir "$base")
+  shift 2
+fi
+name="${1:?$usage}"
+
+if [ "$name" = "example" ] && [ "$base" = "$root/domains" ]; then
+  dir="$root/examples/basic"
+else
+  dir="$base/$name"
+fi
+
+if [ ! -d "$dir" ]; then
+  echo "No folder at $dir" >&2
+  exit 1
+fi
+
+# Same credential loading as ./tf: shared .env first, then the folder's own (zone-scoped) token.
+set -a
+if [ -f "$root/.env" ]; then
+  # shellcheck source=/dev/null
+  source "$root/.env"
+fi
+if [ -f "$dir/.env" ]; then
+  # shellcheck source=/dev/null
+  source "$dir/.env"
+fi
+set +a
+
+if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+  echo "CLOUDFLARE_API_TOKEN isn't set. Put it in .env (see .env.example)." >&2
+  exit 1
+fi
+
+# The zone ID is already in terraform.tfvars, so read it from there instead of asking for it again.
+zone_id="$(sed -n 's/^zone_id *= *"\([^"]*\)".*/\1/p' "$dir/terraform.tfvars" 2> /dev/null || true)"
+if [ -z "$zone_id" ]; then
+  echo "No zone_id found in $dir/terraform.tfvars" >&2
+  exit 1
+fi
+
+# The token goes in through a curl config on stdin, not as an argument, so it never shows up
+# in the process list.
+api() {
+  printf 'header = "Authorization: Bearer %s"\n' "$CLOUDFLARE_API_TOKEN" |
+    curl -sS --fail-with-body -K - "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?per_page=100&page=$1"
+}
+
+# The API returns records in pages. Keep asking until we've passed the last page,
+# gathering every record into one JSON list.
+records="[]"
+page=1
+while :; do
+  reply="$(api "$page")"
+  records="$(jq -n --argjson all "$records" --argjson new "$(echo "$reply" | jq '.result')" '$all + $new')"
+  total_pages="$(echo "$reply" | jq -r '.result_info.total_pages')"
+  [ "$page" -ge "$total_pages" ] && break
+  page=$((page + 1))
+done
+
+# What Terraform believes it manages: the real record IDs stored in the state. This reads the
+# state from the bucket and changes nothing. The ${arr[@]+...} form keeps an empty list from being
+# an "unbound variable" error in the bash 3.2 that macOS ships.
+state_ids="$("$root/tf" ${tf_args[@]+"${tf_args[@]}"} "$name" state pull |
+  jq '[.resources[] | select(.type == "cloudflare_dns_record") | .instances[].attributes.id]')"
+
+# A record in Cloudflare whose ID isn't in the state is invisible to plan and apply.
+echo "$records" | jq -r --argjson ids "$state_ids" '
+  sort_by(.type, .name)[]
+  | .id as $id
+  | [.type, .name, .content, .id, (if ($ids | index($id)) then "managed" else "NOT IN STATE" end)]
+  | @tsv' | column -t -s "$(printf '\t')"
+
+# The reverse: in the state but gone from Cloudflare (deleted in the dashboard). Plan would
+# propose recreating these.
+echo "$records" | jq -r --argjson ids "$state_ids" '
+  [.[].id] as $live | $ids[] | select(. as $i | $live | index($i) | not) | "IN STATE ONLY  " + .'
