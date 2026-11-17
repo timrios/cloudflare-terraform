@@ -240,21 +240,11 @@ The alternative is deleting the scanned record in the dashboard and letting Terr
 
 ### Pick up here
 
-The module, the example, remote state, unit tests, CI and the helper scripts (`new-domain`, `tf`, `records`, public and tested) are built and pushed; `v0.2.0` is the current tag. The README is a single newcomer guide (credentials, steps, importing existing records). Terraform is for my own domains; clients use the launch checklist (decided 2026-11-16, confirmed 2026-11-17). Settings are now two `.env` files (root, shared; per domain, the zone ID); the public repo and `dns-live` are both converted (`dns-live` still needs its CI secrets set and `sitting-duck` re-initialised). Next: put the project on timrios.dev (portfolio). Recent commits are local, not pushed.
+The module, the example, remote state, unit tests, CI and the helper scripts (`new-domain`, `tf`, `records`, public and tested) are built and pushed; `v0.2.0` is the current tag. The README is a single newcomer guide (credentials, steps, importing existing records). Terraform is for my own domains; clients use the launch checklist (decided 2026-11-16, confirmed 2026-11-17). Settings are now two `.env` files (root, shared; per domain, the zone ID); the public repo and `dns-live` are both converted and `dns-live` has nothing pending. The project is linked from timrios.dev's "How this site was built" page (committed in the portfolio repo, not pushed; no project page, decided 2026-11-17). Nothing else is pending. Recent commits are local, not pushed.
 
 ### In progress
 
-**Public versions of the helper scripts** (decided 2026-11-17), so a newcomer who finds this repo gets the whole workflow and not just the module. Design:
-
-- No personal values. `new-domain` copies from `examples/basic/` (the fictional `example.com` folder), not a real domain's folder.
-- A choice of module source: the relative path `../../modules/business-domain` by default, or a `--module-source` option for the GitHub URL and tag form the private repo uses.
-- `records` and `tf` hold nothing personal, so they need generalising (folder per domain, not just `examples/basic`) plus docs and a matching `.env.example`.
-- Safety: real domains must not end up committed in this public repo. `.gitignore` already blocks `tfvars`, `.env` and state; the script also warns, or creates the folder outside the repo, and the docs say real domains go in your own private repo.
-- Quality bar: `shellcheck` in CI, plus a test that runs `new-domain` in a temp folder and checks the state key is set and that a bad name, an existing folder and an unknown email provider are refused.
-- One true copy: this repo becomes the canonical version; the private repo's scripts later point at it (decide how when we get there).
-
-Order: `new-domain` first (most to generalise), then `tf`, then `records`, then the tests and CI, then the README section.
-
+Nothing.
 
 ### Not started
 
@@ -262,6 +252,8 @@ Order: `new-domain` first (most to generalise), then `tf`, then `records`, then 
 
 ### Recently completed
 
+- [x] Put the project on timrios.dev (2026-11-17): no work-list entry, since that list is for clients. The "How this site was built" page now has an open-source section and links to the site's code and to this module
+- [x] Public versions of the helper scripts (`new-domain`, `tf`, `records`): no personal values, a choice of module source, real domains kept out of this repo, `shellcheck` and `tests/scripts.sh` in CI, and the README section (2026-11-17)
 - [x] Decided the private repo uses the public scripts: `dns-live` keeps three-line wrappers that call them with `--dir`, so there is one copy of the logic. `tf` and `records` read the shared `.env` from the `--dir` folder (2026-11-17)
 - [x] `dns-live` moved to the `.env` layout; `timrios-dev` plans with no changes (2026-11-17)
 
