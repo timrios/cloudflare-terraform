@@ -70,12 +70,12 @@ You need Terraform 1.17 or newer, a Cloudflare account with the domain added, an
 3. Edit `main.tf` for your domain (the example uses `example.com`), then run:
 
 ```
-./tf init -backend-config=backend.hcl
-./tf plan
-./tf apply
+./tf example init -backend-config=backend.hcl
+./tf example plan
+./tf example apply
 ```
 
-`./tf` is a small wrapper that loads the token from `.env` and runs Terraform in the example folder, so the token never appears in shell history.
+`./tf <folder>` is a small wrapper that loads the token from `.env` and runs Terraform in that folder, so the token never appears in shell history. `example` is the folder in `examples/basic/`; folders made by `./new-domain` are named by their folder (`./tf acme-shop plan`), and `--dir <path>` points at a folder in your own private repo. It refuses to run when the folder name and the state key in `backend.tf` disagree, so two domains can never share one state.
 
 ## Limits and next steps
 
@@ -104,7 +104,7 @@ The module, the example, remote state, unit tests and CI are built, published an
 Order: `new-domain` first (most to generalise), then `tf`, then `records`, then the tests and CI, then the README section.
 
 - [x] Public `new-domain` (from `examples/basic/`; folders go in the git-ignored `domains/`, or `--dir` with a required `--module-source`; generated config checked with `terraform validate`) (2026-11-17)
-- [ ] Public `tf` that takes a folder name, like the private one
+- [x] Public `tf` that takes a folder name (or `--dir`), loads `.env` files and refuses on a mismatched state key (2026-11-17)
 - [ ] Public `records`
 - [ ] `shellcheck` in CI and a test script for `new-domain`
 - [ ] README section for newcomers: how to use the three scripts with your own domain
