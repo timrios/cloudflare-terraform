@@ -72,20 +72,47 @@ Each domain you manage gets its own folder and its own state file (Terraform's r
 
 - Terraform 1.17 or newer. `curl` and `jq` are needed only for `./records`.
 - A Cloudflare account with your domain added. Adding it creates the **zone** (Cloudflare's container for the domain's DNS records); the module doesn't create it for you.
-- A Cloudflare **API token** limited to that zone, with permission to edit DNS, edit zone settings, read the zone and edit redirects.
-- An **R2 bucket** for state, with an R2 access key pair. Keeping state in a bucket means one shared copy that survives a lost laptop.
+- Three credentials from your Cloudflare dashboard, which the next section walks through. They go in a git-ignored `.env` file, and no one else ever needs to see them.
+
+### Get your credentials
+
+You need three values for `.env`, from two different places in the dashboard. They look alike and are easy to mix up, so the table lists which is which:
+
+| `.env` variable | What it is | Where it comes from |
+| --- | --- | --- |
+| `CLOUDFLARE_API_TOKEN` | Lets Terraform edit your domain's DNS | An **API token** (below, A) |
+| `AWS_ACCESS_KEY_ID` | The "username" for the state bucket | An **R2 API token** (below, B) |
+| `AWS_SECRET_ACCESS_KEY` | The "password" for the state bucket | The same R2 API token, shown once |
+
+The two `AWS_` names look odd for a Cloudflare setup. R2 speaks the same protocol as Amazon's storage service (S3), and Terraform's state backend reads those standard names, so the R2 keys go under them. They are **not** AWS credentials.
+
+**A. The Cloudflare API token** (for DNS)
+
+1. In the dashboard, go to **My Profile > API Tokens** and choose **Create Token**. Start from scratch with a custom token rather than a template, because the module needs more than DNS.
+2. Under permissions, add: edit DNS records, edit zone settings, read the zone, and edit Dynamic URL Redirects. Cloudflare's wording for these may differ slightly; pick the ones that match.
+3. Under **Zone Resources**, choose your specific domain. Limiting the token to one zone means a leaked token can't touch your other domains.
+4. Create it and **copy the token now**. Cloudflare shows it once.
+
+**B. The R2 bucket and its keys** (for state)
+
+1. In the dashboard, open **R2 object storage** and create a bucket. Keep it private, which is the default. Note its name.
+2. On the same R2 page, under **Account Details**, choose **Manage** next to **API Tokens**, then create an API token with **Object Read & Write** permission, limited to that bucket.
+3. Copy the **Access Key ID** and the **Secret Access Key** now. The secret is shown once.
+4. Also note your **account ID**, shown on the R2 page. It goes into `backend.hcl` in step 3, not into `.env`.
+
+You'll also need your domain's **zone ID** in step 3. It's on the domain's Overview page, in the right-hand column.
 
 ### Step by step
 
-**1. Clone the repo and set your credentials.**
+**1. Clone the repo and fill in `.env`.**
 
 ```
 git clone https://github.com/timrios/cloudflare-terraform.git
 cd cloudflare-terraform
-cp .env.example .env     # then fill in the Cloudflare token and the R2 keys
+cp .env.example .env
 ```
 
-`.env` is git-ignored, so the token never reaches git or your shell history.
+Open `.env` and paste in the three values from the previous section, after the `=` on each line. `.env` is git-ignored, so none of them ever reaches git or your shell history. Never paste them into a chat, a commit or a command line.
 
 **2. Make a folder for your domain.**
 
