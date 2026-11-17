@@ -58,7 +58,7 @@ The module contains nothing specific to one business. Anything particular to a d
 - **`for_each` for lists of things, `count` for yes or no.** MX records and extra records use `for_each` keyed by a stable name, so reordering the list doesn't shift every record. SPF uses `count`, which is 0 or 1 depending on the provider.
 - **`extra_records` is keyed by a label I choose, not the record name.** Several DNS records share a name (three TXT proofs at the bare domain), and `for_each` keys must be unique.
 - **`email_provider` has no default, but `dmarc_policy` does.** A forgotten email provider silently becoming `none` would delete the MX records and stop the domain's mail, so it must be chosen. `dmarc_policy` defaults to `none`, which only reports and never affects delivery. Tightening it to `reject` is a deliberate step.
-- **State lives in a private Cloudflare R2 bucket with locking.** One shared copy survives a lost laptop, and the lock stops two runs overwriting each other. Backend settings go in a git-ignored `backend.hcl`, since a backend block can't read variables.
+- **State lives in a private Cloudflare R2 bucket with locking.** One shared copy survives a lost laptop, and the lock stops two runs overwriting each other. The bucket name is passed to `init` by `./tf` and the endpoint comes from an environment variable, both set in a git-ignored `.env`, since a backend block can't read variables.
 - **The module has unit tests that can't reach Cloudflare.** `terraform test` runs against a mock provider: 11 tests check what the module builds (record counts per mail provider, names, DMARC content, the redirect), and 10 check that every bad input is rejected, so a weakened validation fails a test.
 - **CI never touches state or the API token.** It runs `terraform fmt -check`, `validate`, `tflint` and the tests with `init -backend=false`. If CI could reach the state bucket, anyone who got code into a pull request could read or change real infrastructure.
 - **Versions are pinned.** Terraform `~> 1.17` and the Cloudflare provider `~> 5.29`, with the lock file committed, so a different version can't quietly change a plan. Provider v5 renamed many resources compared with v4.
@@ -84,7 +84,7 @@ cd cloudflare-terraform
 cp .env.example .env
 ```
 
-`.env` is where your secrets go. It's git-ignored, so nothing in it reaches git or your shell history. It's empty for now; you fill it in at step 4. Never paste its values into a chat, a commit or a command line.
+This root `.env` holds what every domain shares: your Cloudflare token, your R2 keys, the state bucket and its address. It's git-ignored, so nothing in it reaches git or your shell history. It's empty for now; you fill it in at step 4. Never paste its values into a chat, a commit or a command line.
 
 **2. Make a folder for your domain.**
 
@@ -113,29 +113,30 @@ Whatever you pick, the module also creates a **DMARC** record, which tells recei
 
 The script creates `domains/acme-shop/` with the boilerplate, a short `main.tf`, and the state key already set to `acme-shop/terraform.tfstate`. It prints the next steps. It refuses a bad name, an unknown provider or a folder that already exists, and it never copies a zone ID or token.
 
-**3. Create your two settings files.** Still in the repo folder:
+**3. Create the domain's own settings file.** Still in the repo folder:
 
 ```
-cp domains/acme-shop/terraform.tfvars.example domains/acme-shop/terraform.tfvars
-cp domains/acme-shop/backend.hcl.example domains/acme-shop/backend.hcl
+cp domains/acme-shop/.env.example domains/acme-shop/.env
 ```
 
-If `backend.hcl` is already there (the script copies one if you made it earlier in `examples/basic/`), skip the second command. Both files are git-ignored. Open them and `.env` in your editor now, because the next step fills in six blanks across the three files.
+It's git-ignored and holds one line: this domain's zone ID. Open it and the root `.env` in your editor now, because the next step fills in six blanks across the two files.
 
 **4. Fill in the six values.** Each comes from the Cloudflare dashboard, in three short visits. Paste each one into its file as you find it:
 
 | Value | Goes in | On the line |
 | --- | --- | --- |
-| Zone ID | `domains/acme-shop/terraform.tfvars` | `zone_id` |
-| Account ID | `domains/acme-shop/backend.hcl` | the `<ACCOUNT_ID>` inside `endpoints` |
-| Bucket name | `domains/acme-shop/backend.hcl` | `bucket` |
-| Cloudflare API token | `.env` | `CLOUDFLARE_API_TOKEN=` |
+| Zone ID | `domains/acme-shop/.env` | `TF_VAR_zone_id=` |
+| Cloudflare API token | `.env` (the repo root) | `CLOUDFLARE_API_TOKEN=` |
+| Bucket name | `.env` | `TF_STATE_BUCKET=` |
+| Account ID | `.env` | the `<ACCOUNT_ID>` inside `AWS_ENDPOINT_URL_S3=` |
 | R2 Access Key ID | `.env` | `AWS_ACCESS_KEY_ID=` |
 | R2 Secret Access Key | `.env` | `AWS_SECRET_ACCESS_KEY=` |
 
-The last two are not AWS credentials. R2, Cloudflare's storage, speaks the same protocol as Amazon's S3, and Terraform's state backend reads those standard names, so the R2 keys go under them. They are also a different pair from the Cloudflare API token: the token lets Terraform edit your DNS, and the R2 keys let it read and write its state in the bucket.
+Only the zone ID belongs to one domain. The other five are shared, so a second domain needs just its own zone ID. (A domain's `.env` can also hold its own `CLOUDFLARE_API_TOKEN`, which wins over the shared one, so a domain can have a token limited to its own zone.)
 
-*Visit 1: your domain's Overview page.* Copy the **zone ID** from the right-hand column and paste it into `terraform.tfvars`.
+The two R2 keys are not AWS credentials. R2, Cloudflare's storage, speaks the same protocol as Amazon's S3, and Terraform's state backend reads those standard names, so the R2 keys go under them. They are also a different pair from the Cloudflare API token: the token lets Terraform edit your DNS, and the R2 keys let it read and write its state in the bucket.
+
+*Visit 1: your domain's Overview page.* Copy the **zone ID** from the right-hand column and paste it into the domain's `.env`.
 
 *Visit 2: the API token (for DNS).*
 
@@ -155,21 +156,21 @@ The last two are not AWS credentials. R2, Cloudflare's storage, speaks the same 
 
 *Visit 3: R2, for the state bucket.*
 
-1. Open **R2 object storage** and create a bucket. Keep it private, which is the default. Paste its name into `backend.hcl`.
-2. The R2 page also shows your **account ID**. Paste it into `backend.hcl`, replacing `<ACCOUNT_ID>` in the endpoint.
+1. Open **R2 object storage** and create a bucket. Keep it private, which is the default. Paste its name into the root `.env`, after `TF_STATE_BUCKET=`.
+2. The R2 page also shows your **account ID**. Paste it into the root `.env`, to make the address after `AWS_ENDPOINT_URL_S3=` read `https://<your account ID>.r2.cloudflarestorage.com`.
 3. On the same page, under **Account Details**, choose **Manage** next to **API Tokens** and create an API token with **Object Read & Write** permission, limited to that bucket.
-4. Copy the **Access Key ID** and the **Secret Access Key** now, since the secret is shown once. Paste them into `.env`.
+4. Copy the **Access Key ID** and the **Secret Access Key** now, since the secret is shown once. Paste them into the root `.env`.
 
 **5. Describe your domain in `main.tf`.** Change the placeholder `dmarc_report_email` to an address you read, since DMARC reports are sent there. Then add `dkim_records` (from your mail provider) and `extra_records` (verification TXT records, a mail-sending service's CNAMEs and so on). [`examples/basic/main.tf`](examples/basic/main.tf) shows every input.
 
 **6. Connect to state and preview.**
 
 ```
-./tf acme-shop init -backend-config=backend.hcl
+./tf acme-shop init
 ./tf acme-shop plan
 ```
 
-`init` downloads the provider and connects to the bucket. `plan` is a preview and changes nothing. Read it: if it shows anything **destroyed** or **replaced**, stop and work out why before going on. If your domain already has records in Cloudflare, read the next section before you apply.
+`init` downloads the provider and connects to the bucket (`./tf` passes it your `TF_STATE_BUCKET`). `plan` is a preview and changes nothing. Read it: if it shows anything **destroyed** or **replaced**, stop and work out why before going on. If your domain already has records in Cloudflare, read the next section before you apply.
 
 **7. Apply, then check.**
 
@@ -223,7 +224,7 @@ The alternative is deleting the scanned record in the dashboard and letting Terr
 ### The scripts
 
 - **`./new-domain [--dir PATH] [--module-source SOURCE] <folder> <domain> <email_provider>`** makes the folder, as above.
-- **`./tf [--dir PATH] <folder> <terraform command>`** loads credentials from `.env`, then runs Terraform in that folder. A folder's own `.env` overrides the shared one, so each domain can have a token limited to its own zone. It refuses to run if the state key doesn't match the folder name, so two domains can never share one state.
+- **`./tf [--dir PATH] <folder> <terraform command>`** loads the root `.env` (shared values) and then the folder's `.env` (its zone ID), then runs Terraform in that folder, adding the bucket for `init`. A folder's own `.env` overrides the shared one, so each domain can have a token limited to its own zone. It refuses to run if the state key doesn't match the folder name, so two domains can never share one state.
 - **`./records [--dir PATH] <folder>`** is read-only. It flags `NOT IN STATE` (a record Terraform doesn't know about, so a `plan` stays silent about it) and `IN STATE ONLY` (a record Terraform expects that is gone from Cloudflare).
 
 `examples/basic/` is the fictional `example.com` the repo's tests and CI validate, and the template `./new-domain` copies from. It isn't meant to be applied as it is, because `example.com` isn't yours. `./tf example ...` runs Terraform in it if you want to experiment.
@@ -239,7 +240,7 @@ The alternative is deleting the scanned record in the dashboard and letting Terr
 
 ### Pick up here
 
-The module, the example, remote state, unit tests, CI and the helper scripts (`new-domain`, `tf`, `records`, public and tested) are built and pushed; `v0.2.0` is the current tag. The README is a single newcomer guide (credentials, steps, importing existing records). Terraform is for my own domains; clients use the launch checklist (decided 2026-11-16, confirmed 2026-11-17). Next: consolidate the settings files into `.env` files (see Not started), then decide how the private repo uses the public scripts (one copy, not two), then put the project on timrios.dev (portfolio). The last README commit (setup reorder) is local, not pushed.
+The module, the example, remote state, unit tests, CI and the helper scripts (`new-domain`, `tf`, `records`, public and tested) are built and pushed; `v0.2.0` is the current tag. The README is a single newcomer guide (credentials, steps, importing existing records). Terraform is for my own domains; clients use the launch checklist (decided 2026-11-16, confirmed 2026-11-17). Settings are now two `.env` files (root, shared; per domain, the zone ID); the public repo is converted, `dns-live` is not yet. Next: convert `dns-live` and decide how the private repo uses the public scripts (one copy, not two), then put the project on timrios.dev (portfolio). Recent commits are local, not pushed.
 
 ### In progress
 
@@ -258,11 +259,12 @@ Order: `new-domain` first (most to generalise), then `tf`, then `records`, then 
 
 ### Not started
 
-- [ ] **Consolidate settings into `.env` files** (idea 2026-11-17). Today six values sit in three files (`.env`, `terraform.tfvars`, `backend.hcl`), and the shared bucket and account ID are copied into every domain's `backend.hcl`. Proposal: root `.env` holds the shared values (Cloudflare token, R2 keys, bucket, account ID); each domain's own `.env` holds its zone ID (as `TF_VAR_zone_id`) and optionally its own token; `tf` passes the bucket to `init` with `-backend-config` and the account ID through `AWS_ENDPOINT_URL_S3`. `terraform.tfvars` and `backend.hcl` go away, and the README's six-value table becomes two files. Verify first: that the S3 backend has no environment variable for the bucket, and that `AWS_ENDPOINT_URL_S3` works with R2 on Terraform 1.17. Touches `tf`, `records` (reads the zone ID from tfvars with `sed`), `new-domain`, `tests/scripts.sh`, the README, `.env.example`, and the private repo (`dns-live`, including its CI plan job).
+- [ ] **Move `dns-live` (private repo) to the `.env` layout** (2026-11-17). Its folders still have `terraform.tfvars` and `backend.hcl`, and its scripts and CI plan job read them. Convert them: each domain's `.env` gets `TF_VAR_zone_id`, the root `.env` gets `TF_STATE_BUCKET` and `AWS_ENDPOINT_URL_S3`; the CI job sets the same names from its secrets. Do this together with the "one copy of the scripts" decision, since both touch the same files.
 
 
 ### Recently completed
 
+- [x] Settings consolidated into `.env` files in this repo (2026-11-17): the root `.env` holds the shared values, each domain's `.env` its zone ID as `TF_VAR_zone_id`; `./tf` adds the bucket on `init` and the endpoint comes from `AWS_ENDPOINT_URL_S3` (both checked against real R2); `terraform.tfvars` and `backend.hcl` are gone; `tf`, `records`, `new-domain`, tests, `.env.example` and the README updated
 - [x] Decision (2026-11-17, confirming 2026-11-16): clients do not get Terraform. It is for my own domains, where I am the only editor and learn from it; a client domain uses the launch checklist, since a small set of records changed rarely by one person doesn't repay the setup and the state to protect. Revisit only for a client with many records, several editors or ongoing email changes.
 - [x] README setup reordered: clone and create the empty files first, then fill in the six values in three dashboard visits, pasting each into its file (2026-11-17)
 - [x] README "Using it" rewritten as one newcomer guide: what each `new-domain` argument controls (including what each `email_provider` creates), a "domain that already has records" section with `import` blocks (addresses checked with `terraform validate`), and `./records` fixed for a domain whose state is still empty (2026-11-17)

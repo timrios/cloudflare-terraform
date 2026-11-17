@@ -1,8 +1,9 @@
 terraform {
   # Partial configuration: a backend block can't read variables, so the parts that differ
-  # per person (bucket name, and an endpoint containing the Cloudflare account ID) come from
-  # the git-ignored backend.hcl at init time (terraform init -backend-config=backend.hcl).
-  # The access key and secret come from AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
+  # per person are supplied from outside. The bucket name is passed at init time
+  # (-backend-config="bucket=..."; ./tf does it from TF_STATE_BUCKET). The endpoint, which
+  # contains the Cloudflare account ID, comes from AWS_ENDPOINT_URL_S3, and the access key and
+  # secret from AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
   backend "s3" {
     key = "example/terraform.tfstate"
 

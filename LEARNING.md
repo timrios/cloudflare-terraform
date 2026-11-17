@@ -448,3 +448,16 @@ Added the first time each comes up.
 - `wc -l` on macOS pads its output with spaces, so comparing it to `0` as a string gave a false alarm during the history check.
 - A newcomer's first look at a domain is a plan with no state yet. `state pull` prints nothing then, which broke `./records` with a confusing jq error until it treated "nothing" as "no records managed". Writing the walkthrough for a stranger found a bug that using it as the author never would.
 - A documented command is a claim: the `import` addresses in the README were checked by running `terraform validate` on them (and a wrong one is rejected), not just written from memory.
+
+## Step 15 — Six settings in two `.env` files instead of three files
+
+**What we did:** Replaced `terraform.tfvars` and `backend.hcl` with `.env` files: a root `.env` for what every domain shares (token, R2 keys, bucket, endpoint) and one `.env` per domain holding just its zone ID. `./tf` loads both; `./records` and `./new-domain` follow.
+
+**The idea:**
+- Terraform reads any environment variable named `TF_VAR_<name>` as the input variable `<name>`, so `TF_VAR_zone_id` replaces the `terraform.tfvars` file, and `./records` reads the same variable.
+- The `backend` block is read before variables exist, so it can't use them. The S3 backend has environment variables for the endpoint (`AWS_ENDPOINT_URL_S3`) and credentials, but none for the bucket. The bucket must be a `-backend-config` flag, so `./tf` adds it on `init`.
+- Check an assumption before building on it: the docs said the endpoint variable works, and a real `init` against R2 proved it.
+
+**Corrections and things worth remembering:**
+- After changing where backend settings come from, run `init -reconfigure`, which ignores what Terraform saved last time.
+- A shared value copied into every folder (bucket, account ID) is a sign it belongs one level up.

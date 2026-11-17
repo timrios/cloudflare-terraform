@@ -40,7 +40,7 @@ if [ ! -d "$dir" ]; then
   exit 1
 fi
 
-# Same credential loading as ./tf: shared .env first, then the folder's own (zone-scoped) token.
+# Same loading as ./tf: shared .env first, then the folder's own (zone ID, optional zone-scoped token).
 set -a
 if [ -f "$root/.env" ]; then
   # shellcheck source=/dev/null
@@ -57,10 +57,11 @@ if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
   exit 1
 fi
 
-# The zone ID is already in terraform.tfvars, so read it from there instead of asking for it again.
-zone_id="$(sed -n 's/^zone_id *= *"\([^"]*\)".*/\1/p' "$dir/terraform.tfvars" 2> /dev/null || true)"
+# The zone ID lives in the folder's .env as TF_VAR_zone_id, the name Terraform reads for
+# var.zone_id, so one value serves both Terraform and this script.
+zone_id="${TF_VAR_zone_id:-}"
 if [ -z "$zone_id" ]; then
-  echo "No zone_id found in $dir/terraform.tfvars" >&2
+  echo "TF_VAR_zone_id isn't set. Put it in $dir/.env (see .env.example)." >&2
   exit 1
 fi
 

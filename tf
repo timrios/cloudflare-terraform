@@ -3,7 +3,7 @@
 # so a token never sits in shell history or the code.
 #
 # Usage: ./tf [--dir PATH] <folder> <terraform command...>
-#   ./tf example init -backend-config=backend.hcl     the fictional example in examples/basic
+#   ./tf example init                                 the fictional example in examples/basic
 #   ./tf acme-shop plan                               a folder made by ./new-domain, in domains/
 #   ./tf --dir ~/my-dns acme-shop plan                a folder in your own private repo
 set -euo pipefail
@@ -41,7 +41,8 @@ if ! grep -q "key *= *\"$name/terraform.tfstate\"" "$dir/backend.tf"; then
 fi
 
 set -a
-# Shared values first (the R2 state keys), then the folder's own .env, which can override them.
+# Shared values first (token, R2 keys, bucket, endpoint), then the folder's own .env (its zone ID,
+# and optionally its own token), which can override them.
 # That lets each domain carry a Cloudflare token limited to its own zone.
 if [ -f "$root/.env" ]; then
   # shellcheck source=/dev/null
@@ -52,6 +53,17 @@ if [ -f "$dir/.env" ]; then
   source "$dir/.env"
 fi
 set +a
+
+# The s3 backend has no environment variable for the bucket (the backend block is read before
+# variables exist), so for `init` the bucket goes in as a flag. Every other setting reaches
+# Terraform as an environment variable from the .env files.
+if [ "${1:-}" = "init" ]; then
+  if [ -z "${TF_STATE_BUCKET:-}" ]; then
+    echo "TF_STATE_BUCKET isn't set. Put the R2 bucket name in .env (see .env.example)." >&2
+    exit 1
+  fi
+  set -- "$@" "-backend-config=bucket=$TF_STATE_BUCKET"
+fi
 
 cd "$dir"
 exec terraform "$@"

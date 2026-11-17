@@ -117,11 +117,9 @@ fi
 
 mkdir -p "$base/$folder"
 
-# Boilerplate only. terraform.tfvars and .env are never copied: they hold a domain's zone ID and
-# token. backend.hcl is copied only if you already made one (it's git-ignored and holds your own
-# bucket and endpoint, the same for every domain).
-for f in backend.hcl backend.hcl.example provider.tf variables.tf versions.tf \
-  terraform.tfvars.example .terraform.lock.hcl; do
+# Boilerplate only. A real .env is never copied: it holds a domain's zone ID and token. Only
+# .env.example is, so the new folder shows which line to fill in.
+for f in provider.tf variables.tf versions.tf .env.example .terraform.lock.hcl; do
   if [ -f "$template/$f" ]; then
     cp "$template/$f" "$base/$folder/$f"
   fi
@@ -161,7 +159,7 @@ Created $base/$folder for $domain (email_provider = $email, state key $folder/te
 
 Next, by hand:
   1. Add $domain to Cloudflare and find its zone ID (dashboard: Overview, right-hand column).
-  2. cp $base/$folder/terraform.tfvars.example $base/$folder/terraform.tfvars   and put the zone ID in it.
-  3. cp $base/$folder/backend.hcl.example $base/$folder/backend.hcl   if it isn't there, and fill in your bucket and endpoint.
+  2. cp $base/$folder/.env.example $base/$folder/.env   and put the zone ID in it.
+  3. Make sure the root .env is filled in (token, R2 keys, bucket, endpoint; see .env.example there).
   4. Run init and plan in that folder, and read the plan before any apply.
 EOF

@@ -53,11 +53,12 @@ check "state key is the folder name" grep -q 'key *= *"acme-shop/terraform.tfsta
 check "main.tf has the domain" grep -q 'domain  = "acme.com"' "$d/main.tf"
 check "main.tf has the email provider" grep -q 'email_provider = "google"' "$d/main.tf"
 check "main.tf uses --module-source" grep -qF "$mod" "$d/main.tf"
-# These hold a domain's zone ID and token; copying them is how one domain's data leaks into another.
-if [ -e "$d/terraform.tfvars" ] || [ -e "$d/.env" ]; then
-  fail "no terraform.tfvars or .env copied"
+check ".env.example is copied" test -f "$d/.env.example"
+# A real .env holds a domain's zone ID and token; copying one is how a domain's data leaks into another.
+if [ -e "$d/.env" ] || [ -e "$d/terraform.tfvars" ] || [ -e "$d/backend.hcl" ]; then
+  fail "no real .env copied"
 else
-  pass "no terraform.tfvars or .env copied"
+  pass "no real .env copied"
 fi
 
 # --- new-domain: refusals, and each must leave nothing behind. ---
