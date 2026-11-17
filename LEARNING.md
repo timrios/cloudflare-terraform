@@ -432,3 +432,17 @@ Added the first time each comes up.
 - *Why is it safer for a git-ignored folder to be the default than a warning in the docs?* It doesn't depend on anyone remembering.
 - *Why can't a Terraform module path be absolute?* Local paths must start with `./` or `../`; for anything else use a remote source with a pinned version.
 - *How would you test a script that generates config?* Run it, then run the real tool (`validate`) on what it made.
+
+## Step 14 — Public `./tf` and `./records`, tests and CI for the scripts
+
+**What we did:** Made `./tf` and `./records` work for any folder (`./tf <folder> ...`, with `--dir` for a folder in your own private repo), checked that the public `./records` gives the same output as the private one on a real zone, then added `tests/scripts.sh` and a shellcheck step to CI.
+
+**The idea:**
+- One rule for finding a folder in all three scripts: `domains/<name>`, or `--dir`, with the shipped example named `example`. Its state key `example/terraform.tfstate` already matched the folder-name-equals-key rule, so it needed no special case in the safety check.
+- Tests for scripts follow the same ideas as the module's tests: check that bad input is refused, check that good input produces the right output, and run the real tool on the output (`terraform validate`).
+- A safety net can be switched off (`git add -f` beats `.gitignore`), so a test checks that nothing under `domains/` is tracked. The test runs in CI, so it fires even if no one remembers.
+
+**Corrections and things worth remembering:**
+- macOS ships bash 3.2, where expanding an empty array under `set -u` is an error; `${arr[@]+"${arr[@]}"}` avoids it.
+- `A && B || C` isn't if-then-else (C runs if B fails); shellcheck caught it. A small `check` helper expresses "this must succeed" cleanly.
+- `wc -l` on macOS pads its output with spaces, so comparing it to `0` as a string gave a false alarm during the history check.

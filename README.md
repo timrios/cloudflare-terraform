@@ -115,7 +115,7 @@ Three small scripts turn the module into a workflow. Each domain gets its own fo
 
 ### Pick up here
 
-The module, the example, remote state, unit tests and CI are built, published and green. Tagged `v0.1.0`; the next release is made when changes are ready (patch for a fix, minor for a feature, major for a breaking change). Plan-in-CI works in the private repo. Tagged `v0.2.0` (adds `MX` and `CAA` to `extra_records`, 26 tests); the private repo now uses it and its plan shows no changes. The second domain is set up in the private repo (its own folder, applied 2026-11-16 to 17; SPF, DKIM and DMARC pass). Apple's iCloud setup changed four records behind Terraform's back, so they were refreshed out of the state and imported again; the plan shows no changes. The record lister (`./records`) and the new-domain script (`./new-domain`) are built. Next: put the project on timrios.dev (portfolio), then the remaining task below. Pushed and scrubbed of real domain names on 2026-11-17. Terraform is for Tim's own domains; client domains use the launch checklist, not this module, unless the timing and the client's needs justify it (decided 2026-11-16).
+The module, the example, remote state, unit tests and CI are built, published and green. Tagged `v0.1.0`; the next release is made when changes are ready (patch for a fix, minor for a feature, major for a breaking change). Plan-in-CI works in the private repo. Tagged `v0.2.0` (adds `MX` and `CAA` to `extra_records`, 26 tests); the private repo now uses it and its plan shows no changes. The second domain is set up in the private repo (its own folder, applied 2026-11-16 to 17; SPF, DKIM and DMARC pass). Apple's iCloud setup changed four records behind Terraform's back, so they were refreshed out of the state and imported again; the plan shows no changes. The record lister (`./records`) and the new-domain script (`./new-domain`) are built. The public helper scripts (`new-domain`, `tf`, `records`) are built, tested and in CI (2026-11-17); the commits after the scrub are local until pushed. Next: decide how the private repo uses the public scripts (one copy, not two), then put the project on timrios.dev (portfolio). Terraform is for Tim's own domains; client domains use the launch checklist, not this module, unless the timing and the client's needs justify it (decided 2026-11-16).
 
 ### In progress
 
@@ -130,11 +130,6 @@ The module, the example, remote state, unit tests and CI are built, published an
 
 Order: `new-domain` first (most to generalise), then `tf`, then `records`, then the tests and CI, then the README section.
 
-- [x] Public `new-domain` (from `examples/basic/`; folders go in the git-ignored `domains/`, or `--dir` with a required `--module-source`; generated config checked with `terraform validate`) (2026-11-17)
-- [x] Public `tf` that takes a folder name (or `--dir`), loads `.env` files and refuses on a mismatched state key (2026-11-17)
-- [x] Public `records` (same folder rules as `tf`, checks for `curl`/`jq`, a token and a zone ID; on a real zone its output was identical to the private script's) (2026-11-17)
-- [x] `shellcheck` in CI and `tests/scripts.sh` (18 checks: new-domain good run and refusals, tf key check, generated config validates, nothing tracked under `domains/`) (2026-11-17)
-- [x] README section "Managing more than one domain": the three scripts, `--dir`, and keeping real domains out of this repo (2026-11-17)
 - [ ] Decide how the private repo uses the public scripts (one copy, not two)
 
 ### Not started
@@ -143,6 +138,11 @@ Order: `new-domain` first (most to generalise), then `tf`, then `records`, then 
 
 ### Recently completed
 
+- [x] README section "Managing more than one domain": the three scripts, `--dir`, and keeping real domains out of this repo (2026-11-17)
+- [x] `shellcheck` in CI and `tests/scripts.sh` (18 checks: new-domain good run and refusals, tf key check, generated config validates, nothing tracked under `domains/`) (2026-11-17)
+- [x] Public `records` (same folder rules as `tf`, checks for `curl`/`jq`, a token and a zone ID; on a real zone its output was identical to the private script's) (2026-11-17)
+- [x] Public `tf` that takes a folder name (or `--dir`), loads `.env` files and refuses on a mismatched state key (2026-11-17)
+- [x] Public `new-domain` (from `examples/basic/`; folders go in the git-ignored `domains/`, or `--dir` with a required `--module-source`; generated config checked with `terraform validate`) (2026-11-17)
 - [x] `./new-domain <folder> <domain> <email_provider>` in the private repo: makes a new domain's folder from the safe boilerplate, writes a minimal `main.tf`, sets the state key with `sed` and checks it; refuses bad names, existing folders and unknown providers (2026-11-17)
 - [x] `./records <folder>` in the private repo: lists a zone's records with their IDs and flags any not in the state (and any in the state but gone from Cloudflare); read-only; the second domain shows all eight as managed (2026-11-17)
 
