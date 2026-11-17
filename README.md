@@ -103,7 +103,7 @@ The module, the example, remote state, unit tests and CI are built, published an
 
 Order: `new-domain` first (most to generalise), then `tf`, then `records`, then the tests and CI, then the README section.
 
-- [ ] Public `new-domain` (from `examples/basic/`, `--module-source`, safety warning)
+- [x] Public `new-domain` (from `examples/basic/`; folders go in the git-ignored `domains/`, or `--dir` with a required `--module-source`; generated config checked with `terraform validate`) (2026-11-17)
 - [ ] Public `tf` that takes a folder name, like the private one
 - [ ] Public `records`
 - [ ] `shellcheck` in CI and a test script for `new-domain`

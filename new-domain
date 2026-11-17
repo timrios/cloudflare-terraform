@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+# Makes the folder for a new domain, with its own state key already set.
+#
+# Usage: ./new-domain [--dir PATH] [--module-source SOURCE] <folder> <domain> <email_provider>
+#   ./new-domain acme-shop acme.com none
+#   ./new-domain --dir ~/my-dns --module-source "git::https://github.com/you/cloudflare-terraform.git//modules/business-domain?ref=v0.2.0" acme-shop acme.com none
+#
+# email_provider is one of: none, icloud, google, microsoft.
+#
+# By default the folder goes in domains/, which .gitignore excludes, so a real domain's zone ID
+# and records can't be committed to this public repo by accident. Keep real domains in your own
+# private repo and point --dir at it. It only creates files in a new folder: it never touches an
+# existing domain and never runs Terraform.
+set -euo pipefail
+
+root="$(cd "$(dirname "$0")" && pwd)"
+usage="Usage: ./new-domain [--dir PATH] [--module-source SOURCE] <folder> <domain> <email_provider>"
+
+# The folder every new domain is copied from: the fictional example, which CI validates, so a
+# broken template is caught before a user hits it.
+template="$root/examples/basic"
+
+base="$root/domains"
+module_source=""
+custom_dir=0
+args=()
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --dir)
+      base="${2:?--dir needs a path}"
+      custom_dir=1
+      shift 2
+      ;;
+    --module-source)
+      module_source="${2:?--module-source needs a value}"
+      shift 2
+      ;;
+    -h | --help)
+      echo "$usage"
+      exit 0
+      ;;
+    -*)
+      echo "Unknown option: $1" >&2
+      echo "$usage" >&2
+      exit 1
+      ;;
+    *)
+      args+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [ "${#args[@]}" -ne 3 ]; then
+  echo "$usage" >&2
+  exit 1
+fi
+folder="${args[0]}"
+domain="${args[1]}"
+email="${args[2]}"
+
+# --- Checks first: nothing is created until every one passes. ---
+
+# The folder name becomes part of the state key, so keep it to characters that are safe in both.
+if ! [[ "$folder" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+  echo "Folder name must be lowercase letters, digits and single dashes (got: $folder)" >&2
+  exit 1
+fi
+
+if ! [[ "$domain" =~ ^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z]{2,}$ ]]; then
+  echo "That doesn't look like a domain: $domain" >&2
+  exit 1
+fi
+
+# Same list as the module's own validation, checked here so a typo fails before any file exists.
+case "$email" in
+  none | icloud | google | microsoft) ;;
+  *)
+    echo "email_provider must be one of: none, icloud, google, microsoft (got: $email)" >&2
+    exit 1
+    ;;
+esac
+
+# Terraform only accepts a local module path that starts with ./ or ../, so a folder outside this
+# repo can't use a path that works from everywhere. Ask for a source it can actually fetch.
+if [ "$custom_dir" -eq 1 ] && [ -z "$module_source" ]; then
+  echo "--dir puts the folder outside this repo, so Terraform can't find the module by a relative path." >&2
+  echo "Add --module-source with the module's GitHub address, for example:" >&2
+  echo "  --module-source \"git::https://github.com/<you>/cloudflare-terraform.git//modules/business-domain?ref=v0.2.0\"" >&2
+  exit 1
+fi
+if [ -z "$module_source" ]; then
+  # domains/<folder>/ is two levels below the repo root, so the module is two levels up.
+  module_source="../../modules/business-domain"
+fi
+
+if [ ! -d "$template" ]; then
+  echo "Template folder not found: $template" >&2
+  exit 1
+fi
+
+# A --dir that doesn't exist is almost always a typo; creating it silently would hide that.
+# The default domains/ folder is made on first use.
+if [ "$custom_dir" -eq 1 ] && [ ! -d "$base" ]; then
+  echo "--dir folder doesn't exist: $base" >&2
+  exit 1
+fi
+
+# Never overwrite: an existing folder is a live domain's code.
+if [ -e "$base/$folder" ]; then
+  echo "$base/$folder already exists. Pick another name, or edit that folder by hand." >&2
+  exit 1
+fi
+
+# --- Build the folder. ---
+
+mkdir -p "$base/$folder"
+
+# Boilerplate only. terraform.tfvars and .env are never copied: they hold a domain's zone ID and
+# token. backend.hcl is copied only if you already made one (it's git-ignored and holds your own
+# bucket and endpoint, the same for every domain).
+for f in backend.hcl backend.hcl.example provider.tf variables.tf versions.tf \
+  terraform.tfvars.example .terraform.lock.hcl; do
+  if [ -f "$template/$f" ]; then
+    cp "$template/$f" "$base/$folder/$f"
+  fi
+done
+
+# Point the state key at this folder. The pattern matches the whole key line, whatever it says now.
+sed "s|^\( *key *= *\)\".*\"|\1\"$folder/terraform.tfstate\"|" \
+  "$template/backend.tf" > "$base/$folder/backend.tf"
+
+# The module label can't contain dashes, so swap them for underscores.
+label="${folder//-/_}"
+
+cat > "$base/$folder/main.tf" <<EOF
+module "$label" {
+  source  = "$module_source"
+  zone_id = var.zone_id
+  domain  = "$domain"
+
+  email_provider = "$email"
+
+  # Required, and a guess: change it to an address you read. DMARC reports go there.
+  dmarc_report_email = "hello@$domain"
+
+  # Add dmarc_policy, dkim_records and extra_records here once your email provider
+  # gives you the values. See examples/basic/main.tf for the shape.
+}
+EOF
+
+# Self-check: if the key isn't what we meant, the script has a bug, so stop loudly.
+if ! grep -q "key *= *\"$folder/terraform.tfstate\"" "$base/$folder/backend.tf"; then
+  echo "BUG: state key in $folder/backend.tf was not set. Don't run Terraform there." >&2
+  exit 1
+fi
+
+cat <<EOF
+Created $base/$folder for $domain (email_provider = $email, state key $folder/terraform.tfstate).
+
+Next, by hand:
+  1. Add $domain to Cloudflare and find its zone ID (dashboard: Overview, right-hand column).
+  2. cp $base/$folder/terraform.tfvars.example $base/$folder/terraform.tfvars   and put the zone ID in it.
+  3. cp $base/$folder/backend.hcl.example $base/$folder/backend.hcl   if it isn't there, and fill in your bucket and endpoint.
+  4. Run init and plan in that folder, and read the plan before any apply.
+EOF

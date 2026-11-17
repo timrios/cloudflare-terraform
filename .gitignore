@@ -31,4 +31,9 @@ backend.hcl
 # but only the root configuration's (examples/basic). A module leaves versions to its caller.
 modules/business-domain/.terraform.lock.hcl
 
+# Folders made by ./new-domain for real domains. Everything in domains/ is ignored except its
+# README, so a real zone ID or record can't be committed to this public repo by accident.
+domains/*
+!domains/README.md
+
 .DS_Store

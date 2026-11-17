@@ -414,3 +414,21 @@ Added the first time each comes up.
 - *Why does the script copy some files and not others?* Boilerplate is the same for every domain. Files holding a domain's identity, records or credentials must never travel.
 - *What happens if two domains share a state key?* They share one state, so a plan for one sees the other's records as things to destroy.
 - *Why check inputs before creating anything?* A failed run then leaves nothing half-built.
+
+## Step 13 — A public version of `./new-domain`
+
+**What we did:** Rewrote the private script so a stranger can use it. It copies from the fictional `examples/basic/`, puts new folders in a git-ignored `domains/`, and takes `--dir` (put the folder in your own private repo) with a required `--module-source`.
+
+**The idea, in my words:**
+- Make the safe thing the default: a git-ignored `domains/` folder means a real zone ID can't be committed by accident, without anyone remembering a rule.
+- A local module path must start with `./` or `../`, so a folder outside the repo can't use one. That's why `--dir` forces `--module-source` (a GitHub address and tag).
+
+**Corrections and things worth remembering:**
+- `.gitignore` can be overridden with `git add -f`, so a CI check that fails if anything under `domains/` is tracked is the second net (still to do).
+- `terraform validate` on the generated folder found a real bug that the five refusal tests couldn't: the module requires `dmarc_report_email` and the script didn't write it. Testing that the *output* works is a different test from testing that the *checks* work. The private script had the same bug and was fixed too.
+- A placeholder that is a guess (`hello@<domain>`) gets a comment saying to change it.
+
+**Questions an interviewer might ask:**
+- *Why is it safer for a git-ignored folder to be the default than a warning in the docs?* It doesn't depend on anyone remembering.
+- *Why can't a Terraform module path be absolute?* Local paths must start with `./` or `../`; for anything else use a remote source with a pinned version.
+- *How would you test a script that generates config?* Run it, then run the real tool (`validate`) on what it made.
