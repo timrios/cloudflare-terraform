@@ -88,14 +88,19 @@ You need Terraform 1.17 or newer, a Cloudflare account with the domain added, an
 
 ### Pick up here
 
-The module, the example, remote state, unit tests and CI are built, published and green. Tagged `v0.1.0`; the next release is made when changes are ready (patch for a fix, minor for a feature, major for a breaking change). Plan-in-CI works in the private repo. `CAA` and `MX` support is built and tested (26 tests) but not yet committed or tagged. Next: commit, tag `v0.2.0`, then bump the private repo's `ref`.
+The module, the example, remote state, unit tests and CI are built, published and green. Tagged `v0.1.0`; the next release is made when changes are ready (patch for a fix, minor for a feature, major for a breaking change). Plan-in-CI works in the private repo. Tagged `v0.2.0` (adds `MX` and `CAA` to `extra_records`, 26 tests); the private repo now uses it and its plan shows no changes. The second domain is set up in the private repo (its own folder, applied 2026-11-16 to 17; SPF, DKIM and DMARC pass). Apple's iCloud setup changed four records behind Terraform's back, so they were refreshed out of the state and imported again; the plan shows no changes. The record lister (`./records`) and the new-domain script (`./new-domain`) are built. Next: the remaining task below. Terraform is for Tim's own domains; client domains use the launch checklist, not this module, unless the timing and the client's needs justify it (decided 2026-11-16).
 
 ### Not started
 
-- [ ] Tag `v0.2.0`, then bump the private repo's `ref` (its CI plan should show only the version bump)
+- [ ] Judge whether clients should get Terraform. The second domain was started the evening of 2026-11-16 and finished 2026-11-17, with the Apple detour (a real-world drift problem) taking a good part of it; no exact time was kept
 
 ### Recently completed
 
+- [x] `./new-domain <folder> <domain> <email_provider>` in the private repo: makes a new domain's folder from the safe boilerplate, writes a minimal `main.tf`, sets the state key with `sed` and checks it; refuses bad names, existing folders and unknown providers (2026-11-17)
+- [x] `./records <folder>` in the private repo: lists a zone's records with their IDs and flags any not in the state (and any in the state but gone from Cloudflare); read-only; the second domain shows all eight as managed (2026-11-17)
+
+- [x] Second domain set up by hand in the private repo and applied; iCloud mail works (SPF, DKIM and DMARC pass); Apple's Cloudflare authorization replaced four records, fixed with `apply -refresh-only` and `import`; plan shows no changes (2026-11-17)
+- [x] Tagged `v0.2.0`; the private repo's `ref` bumped and its plan showed no changes (2026-11-16)
 - [x] `extra_records` accepts `MX` (with a required priority) and `CAA` (with a tag, sent as structured data), tests written first (2026-11-16)
 - [x] `terraform plan` in CI, built in the private repo that uses the module: read-only Cloudflare token, Object Read only R2 key, `pull_request` trigger, never applies (2026-11-16)
 - [x] `terraform test`: 21 tests with a mock provider (behaviour and validation), run in CI (2026-11-16)

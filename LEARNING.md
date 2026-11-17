@@ -354,3 +354,63 @@ Added the first time each comes up.
 - *What do `optional` and `computed` mean on a provider attribute?* Optional: you may set it. Computed: the provider sets it when you don't. Both together mean "set it or let the provider decide".
 - *Why does CAA need a `data` block when MX uses `content`?* The provider models CAA's parts (flags, tag, value) as structured data; MX is a hostname plus a separate priority.
 - *Why a minor version (v0.2.0) and not a patch?* New inputs are a feature; existing callers are unaffected, so it isn't a breaking change.
+
+## Step 10 — When is Terraform actually worth it?
+
+**What we did:** Stepped back after the second domain and asked how useful Terraform is for a small domain whose records are set once. Setting up the second domain took about a day, and Apple's iCloud setup changed four records behind Terraform's back.
+
+**The idea:**
+- Terraform's value is not how often records change. It is repeatability, drift detection and review.
+- For one static domain with about 15 records, the dashboard is quicker. Terraform costs more than it saves.
+- Records do change when third-party setups (Apple, Resend, Google) edit DNS. A plan shows exactly what moved. The dashboard doesn't.
+- Email is the real risk. A wrong SPF, DKIM or DMARC record sends mail to spam without any error. The module and its tests hold the correct pattern, so a new domain can't be set up from memory with a typo.
+- A zone can be rebuilt with `apply`, and every change is a reviewed commit.
+- The payoff grows with the number of domains and the number of people editing. With two domains it is marginal. A big part of the reason to do it is to learn it and to have the portfolio project.
+- Decision (2026-11-16): client domains use the launch checklist, not this module, unless a client has many records, several editors or ongoing email changes.
+
+**Questions an interviewer might ask:**
+- *Records rarely change after setup. Why use Terraform?* Repeatability, drift detection and review, not frequency of change.
+- *When would you not use it?* One static domain managed by one person. The dashboard is faster and the overhead isn't repaid.
+- *What does a plan give you that the dashboard doesn't?* A list of exactly what differs between what you declared and what exists, including changes someone else made.
+- *What's the cost of adopting it?* Setup time, state to protect, tokens to manage, and a tool the next person has to learn.
+
+## Step 11 — A helper script that finds drift (`./records`, private repo)
+
+**What we did:** Wrote a small shell script that lists every DNS record Cloudflare holds for a zone (type, name, content, ID) and compares the IDs with the ones in Terraform's state. A record in Cloudflare but not in the state is flagged `NOT IN STATE`; one in the state but gone from Cloudflare is listed as `IN STATE ONLY`. We built it in two steps, the plain list first, then the comparison.
+
+**The idea, in my words:**
+- A record that is in Cloudflare but not in my config or state is invisible to Terraform. `plan` stays quiet and `apply` never touches it. A clean "no changes" plan means everything Terraform manages matches, not that Cloudflare matches my config.
+- If a record is in my config but not my state, and already exists, `plan` says "create" and `apply` fails with "already exists". That is when to `import`.
+- The script is safe because it only sends `GET` requests. A stronger guard is a read-only token, which makes the API refuse any write, so safety doesn't depend on the code being right.
+- The record ID is the join key between Cloudflare and the state, so no guessing from names (several records can share a name).
+- To add a record: add it to `extra_records`. If a third party already created it, add an `import` block too. To remove one: delete it from `extra_records`; the plan should show only those destroys.
+
+**Corrections and things worth remembering:**
+- A jq pipe changes what `.` means: `$ids | index(.id)` looked for `.id` on the list. Save the value first with `.id as $id`.
+- Building in two steps showed the bug was in the new comparison and not in the listing.
+- The token is passed to curl through a config on stdin, so it never shows in the process list or shell history.
+
+**Questions an interviewer might ask:**
+- *Your plan shows no changes. Does that mean the live zone matches your code?* No. Only the records Terraform manages. Anything created outside it is invisible.
+- *How did you detect unmanaged records?* Compared the API's record IDs with the IDs in the state.
+- *What does `apply` do with a record that's in the zone but not in config or state?* Nothing.
+- *How would you make a read-only script impossible to misuse?* Give it a read-only token.
+
+## Step 12 — A helper script that makes a new domain's folder (`./new-domain`, private repo)
+
+**What we did:** Wrote `./new-domain <folder> <domain> <email_provider>`. It checks its inputs, copies only the safe boilerplate from an existing domain's folder, writes a fresh minimal `main.tf`, sets the state key with `sed`, and checks the result with the same `grep` that `./tf` uses.
+
+**The idea, in my words:**
+- `terraform.tfvars` carries the zone ID, so copying it could mean working on a whole other domain. `main.tf` holds that domain's own records. Both are left out on purpose.
+- The state key is the file name in the bucket where a domain's state lives. Two domains on one key would share one state.
+
+**Corrections and things worth remembering:**
+- Copying `terraform.tfvars` is worse than just "wrong domain": the new folder would have an empty state, so Terraform would think none of the live records exist and plan to create duplicates. With a shared key it would plan to destroy them.
+- `sed 's|old|new|'` substitutes text; `|` as the separator avoids clashing with the `/` in the key. The pattern matches the whole key line, so it works whatever the old key says.
+- Checks run before anything is created, and an existing folder is never overwritten. Running the script twice gave "already exists", which proved that check works.
+- The script's own self-check (the same `grep` as `./tf`) means two independent guards agree on the key.
+
+**Questions an interviewer might ask:**
+- *Why does the script copy some files and not others?* Boilerplate is the same for every domain. Files holding a domain's identity, records or credentials must never travel.
+- *What happens if two domains share a state key?* They share one state, so a plan for one sees the other's records as things to destroy.
+- *Why check inputs before creating anything?* A failed run then leaves nothing half-built.
