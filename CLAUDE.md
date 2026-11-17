@@ -12,8 +12,8 @@ Work at a teaching pace, not a building pace:
 - **Explain before writing.** Before each step, say in plain language what we're about to do, why, and which Terraform idea it uses. Then write the code.
 - **Small pieces.** Add one resource or idea at a time and run `terraform plan` after each, so the owner sees cause and effect. Don't write a whole module in one go.
 - **The owner runs the commands that matter.** For `init`, `plan`, `apply` and `import`, give the owner the command to run themselves with `!` and read the output together, rather than running it silently.
-- **Check understanding.** At the end of each step, ask the owner to explain it back in a sentence or two, or ask one short interview-style question ("What would happen if you deleted the state file?"). Correct gently and fill gaps.
-- **Record it.** When a step is finished, add the owner's own summary (their words, lightly tidied) and any interview questions to `LEARNING.md`.
+- **Explaining back and interview questions are retired (2026-11-17).** The owner has a good grasp and `LEARNING.md` is full, so don't end steps with a quiz or add interview questions. Still explain new ideas and say what a step does and why before building it; the owner can ask for a check on a specific idea.
+- **Record it.** When a step is finished, add a short entry to `LEARNING.md`: what we did, the idea, and corrections worth remembering. No interview-question lists from now on.
 - Use plain language, and define each new term the first time it comes up.
 - Don't move on until the current step's ideas are understood, even if the code already works.
 
