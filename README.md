@@ -239,7 +239,7 @@ The alternative is deleting the scanned record in the dashboard and letting Terr
 
 ### Pick up here
 
-The module, the example, remote state, unit tests, CI and the helper scripts (`new-domain`, `tf`, `records`, public and tested) are built and pushed; `v0.2.0` is the current tag. The README is a single newcomer guide (credentials, steps, importing existing records). Terraform is for my own domains; clients use the launch checklist (decided 2026-11-16, confirmed 2026-11-17). Next: decide how the private repo uses the public scripts (one copy, not two), then put the project on timrios.dev (portfolio).
+The module, the example, remote state, unit tests, CI and the helper scripts (`new-domain`, `tf`, `records`, public and tested) are built and pushed; `v0.2.0` is the current tag. The README is a single newcomer guide (credentials, steps, importing existing records). Terraform is for my own domains; clients use the launch checklist (decided 2026-11-16, confirmed 2026-11-17). Next: consolidate the settings files into `.env` files (see Not started), then decide how the private repo uses the public scripts (one copy, not two), then put the project on timrios.dev (portfolio). The last README commit (setup reorder) is local, not pushed.
 
 ### In progress
 
@@ -257,6 +257,8 @@ Order: `new-domain` first (most to generalise), then `tf`, then `records`, then 
 - [ ] Decide how the private repo uses the public scripts (one copy, not two)
 
 ### Not started
+
+- [ ] **Consolidate settings into `.env` files** (idea 2026-11-17). Today six values sit in three files (`.env`, `terraform.tfvars`, `backend.hcl`), and the shared bucket and account ID are copied into every domain's `backend.hcl`. Proposal: root `.env` holds the shared values (Cloudflare token, R2 keys, bucket, account ID); each domain's own `.env` holds its zone ID (as `TF_VAR_zone_id`) and optionally its own token; `tf` passes the bucket to `init` with `-backend-config` and the account ID through `AWS_ENDPOINT_URL_S3`. `terraform.tfvars` and `backend.hcl` go away, and the README's six-value table becomes two files. Verify first: that the S3 backend has no environment variable for the bucket, and that `AWS_ENDPOINT_URL_S3` works with R2 on Terraform 1.17. Touches `tf`, `records` (reads the zone ID from tfvars with `sed`), `new-domain`, `tests/scripts.sh`, the README, `.env.example`, and the private repo (`dns-live`, including its CI plan job).
 
 
 ### Recently completed
