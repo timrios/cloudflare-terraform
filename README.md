@@ -224,7 +224,7 @@ The alternative is deleting the scanned record in the dashboard and letting Terr
 ### The scripts
 
 - **`./new-domain [--dir PATH] [--module-source SOURCE] <folder> <domain> <email_provider>`** makes the folder, as above.
-- **`./tf [--dir PATH] <folder> <terraform command>`** loads the root `.env` (shared values) and then the folder's `.env` (its zone ID), then runs Terraform in that folder, adding the bucket for `init`. A folder's own `.env` overrides the shared one, so each domain can have a token limited to its own zone. It refuses to run if the state key doesn't match the folder name, so two domains can never share one state.
+- **`./tf [--dir PATH] <folder> <terraform command>`** loads the root `.env` (shared values) and then the folder's `.env` (its zone ID), then runs Terraform in that folder, adding the bucket for `init`. A folder's own `.env` overrides the shared one, so each domain can have a token limited to its own zone. It refuses to run if the state key doesn't match the folder name, so two domains can never share one state. With `--dir`, the shared `.env` is read from that folder (your private repo), not from this one; `./records` does the same.
 - **`./records [--dir PATH] <folder>`** is read-only. It flags `NOT IN STATE` (a record Terraform doesn't know about, so a `plan` stays silent about it) and `IN STATE ONLY` (a record Terraform expects that is gone from Cloudflare).
 
 `examples/basic/` is the fictional `example.com` the repo's tests and CI validate, and the template `./new-domain` copies from. It isn't meant to be applied as it is, because `example.com` isn't yours. `./tf example ...` runs Terraform in it if you want to experiment.
@@ -240,7 +240,7 @@ The alternative is deleting the scanned record in the dashboard and letting Terr
 
 ### Pick up here
 
-The module, the example, remote state, unit tests, CI and the helper scripts (`new-domain`, `tf`, `records`, public and tested) are built and pushed; `v0.2.0` is the current tag. The README is a single newcomer guide (credentials, steps, importing existing records). Terraform is for my own domains; clients use the launch checklist (decided 2026-11-16, confirmed 2026-11-17). Settings are now two `.env` files (root, shared; per domain, the zone ID); the public repo is converted, `dns-live` is not yet. Next: convert `dns-live` and decide how the private repo uses the public scripts (one copy, not two), then put the project on timrios.dev (portfolio). Recent commits are local, not pushed.
+The module, the example, remote state, unit tests, CI and the helper scripts (`new-domain`, `tf`, `records`, public and tested) are built and pushed; `v0.2.0` is the current tag. The README is a single newcomer guide (credentials, steps, importing existing records). Terraform is for my own domains; clients use the launch checklist (decided 2026-11-16, confirmed 2026-11-17). Settings are now two `.env` files (root, shared; per domain, the zone ID); the public repo and `dns-live` are both converted (`dns-live` still needs its CI secrets set and `sitting-duck` re-initialised). Next: put the project on timrios.dev (portfolio). Recent commits are local, not pushed.
 
 ### In progress
 
@@ -255,14 +255,15 @@ The module, the example, remote state, unit tests, CI and the helper scripts (`n
 
 Order: `new-domain` first (most to generalise), then `tf`, then `records`, then the tests and CI, then the README section.
 
-- [ ] Decide how the private repo uses the public scripts (one copy, not two)
 
 ### Not started
 
-- [ ] **Move `dns-live` (private repo) to the `.env` layout** (2026-11-17). Its folders still have `terraform.tfvars` and `backend.hcl`, and its scripts and CI plan job read them. Convert them: each domain's `.env` gets `TF_VAR_zone_id`, the root `.env` gets `TF_STATE_BUCKET` and `AWS_ENDPOINT_URL_S3`; the CI job sets the same names from its secrets. Do this together with the "one copy of the scripts" decision, since both touch the same files.
 
 
 ### Recently completed
+
+- [x] Decided the private repo uses the public scripts: `dns-live` keeps three-line wrappers that call them with `--dir`, so there is one copy of the logic. `tf` and `records` read the shared `.env` from the `--dir` folder (2026-11-17)
+- [x] `dns-live` moved to the `.env` layout; `timrios-dev` plans with no changes (2026-11-17)
 
 - [x] Settings consolidated into `.env` files in this repo (2026-11-17): the root `.env` holds the shared values, each domain's `.env` its zone ID as `TF_VAR_zone_id`; `./tf` adds the bucket on `init` and the endpoint comes from `AWS_ENDPOINT_URL_S3` (both checked against real R2); `terraform.tfvars` and `backend.hcl` are gone; `tf`, `records`, `new-domain`, tests, `.env.example` and the README updated
 - [x] Decision (2026-11-17, confirming 2026-11-16): clients do not get Terraform. It is for my own domains, where I am the only editor and learn from it; a client domain uses the launch checklist, since a small set of records changed rarely by one person doesn't repay the setup and the state to protect. Revisit only for a client with many records, several editors or ongoing email changes.

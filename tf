@@ -12,8 +12,12 @@ root="$(cd "$(dirname "$0")" && pwd)"
 usage="Usage: ./tf [--dir PATH] <folder> <terraform command...>   e.g. ./tf example plan"
 
 base="$root/domains"
+# Where the shared .env lives: this repo's root, or, with --dir, the private repo that holds the
+# domains (it has its own .env; the public repo's folder never does).
+envroot="$root"
 if [ "${1:-}" = "--dir" ]; then
   base="${2:?--dir needs a path}"
+  envroot="$base"
   shift 2
 fi
 
@@ -44,9 +48,9 @@ set -a
 # Shared values first (token, R2 keys, bucket, endpoint), then the folder's own .env (its zone ID,
 # and optionally its own token), which can override them.
 # That lets each domain carry a Cloudflare token limited to its own zone.
-if [ -f "$root/.env" ]; then
+if [ -f "$envroot/.env" ]; then
   # shellcheck source=/dev/null
-  source "$root/.env"
+  source "$envroot/.env"
 fi
 if [ -f "$dir/.env" ]; then
   # shellcheck source=/dev/null

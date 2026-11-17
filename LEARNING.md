@@ -461,3 +461,16 @@ Added the first time each comes up.
 **Corrections and things worth remembering:**
 - After changing where backend settings come from, run `init -reconfigure`, which ignores what Terraform saved last time.
 - A shared value copied into every folder (bucket, account ID) is a sign it belongs one level up.
+
+## Step 16 — Converting the private repo, and one copy of the scripts
+
+**What we did:** Moved `dns-live` (the private repo with the real domains) to the same `.env` layout, then replaced its copies of `tf`, `records` and `new-domain` with three-line wrappers that call this repo's scripts using `--dir`. A bug showed up on the first try and was fixed here.
+
+**The idea:**
+- One copy of the logic: a fix made in the public scripts reaches the private repo at once, instead of two copies drifting apart.
+- The wrappers keep the short commands (`./tf timrios-dev plan`) and hold no logic of their own.
+- `--dir` means "the repo that holds the domains", so that folder's `.env` is also the shared one.
+
+**Corrections and things worth remembering:**
+- First run failed: with `--dir`, `./tf` still looked for the shared `.env` in the public repo's folder, found none, and so the bucket name was empty. A script that takes a folder must decide which folder owns each file it reads. Fixed in `tf` and `records` with an `envroot` variable.
+- `init` asked for `-reconfigure` because the backend settings moved from `backend.hcl` to the environment; the bucket and key were unchanged, so it was safe and the plan showed no changes.

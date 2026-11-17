@@ -21,9 +21,11 @@ done
 
 # Same folder rules as ./tf. tf_args is passed along so the state lookup below uses the same folder.
 base="$root/domains"
+envroot="$root" # with --dir, the shared .env is the one in that folder, as in ./tf
 tf_args=()
 if [ "${1:-}" = "--dir" ]; then
   base="${2:?--dir needs a path}"
+  envroot="$base"
   tf_args=(--dir "$base")
   shift 2
 fi
@@ -42,9 +44,9 @@ fi
 
 # Same loading as ./tf: shared .env first, then the folder's own (zone ID, optional zone-scoped token).
 set -a
-if [ -f "$root/.env" ]; then
+if [ -f "$envroot/.env" ]; then
   # shellcheck source=/dev/null
-  source "$root/.env"
+  source "$envroot/.env"
 fi
 if [ -f "$dir/.env" ]; then
   # shellcheck source=/dev/null
