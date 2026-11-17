@@ -72,48 +72,11 @@ Each domain you manage gets its own folder and its own state file (Terraform's r
 
 - Terraform 1.17 or newer. `curl` and `jq` are needed only for `./records`.
 - A Cloudflare account with your domain added. Adding it creates the **zone** (Cloudflare's container for the domain's DNS records); the module doesn't create it for you.
-- Three credentials from your Cloudflare dashboard, which the next section walks through. They go in a git-ignored `.env` file, and no one else ever needs to see them.
-
-### Get your credentials
-
-You need three values for `.env`, from two different places in the dashboard. They look alike and are easy to mix up, so the table lists which is which:
-
-| `.env` variable | What it is | Where it comes from |
-| --- | --- | --- |
-| `CLOUDFLARE_API_TOKEN` | Lets Terraform edit your domain's DNS | An **API token** (below, A) |
-| `AWS_ACCESS_KEY_ID` | The "username" for the state bucket | An **R2 API token** (below, B) |
-| `AWS_SECRET_ACCESS_KEY` | The "password" for the state bucket | The same R2 API token, shown once |
-
-The two `AWS_` names look odd for a Cloudflare setup. R2 speaks the same protocol as Amazon's storage service (S3), and Terraform's state backend reads those standard names, so the R2 keys go under them. They are **not** AWS credentials.
-
-**A. The Cloudflare API token** (for DNS)
-
-1. In the dashboard, go to **My Profile > API Tokens** and choose **Create Token**. Start from scratch with a custom token rather than a template, because the module needs more than DNS.
-2. Add four permissions. Each row below is one permission in the dashboard's list, under the section named in the first column; tick the boxes shown:
-
-   | Section | Permission | Tick |
-   | --- | --- | --- |
-   | DNS & Zones | DNS | Edit |
-   | DNS & Zones | Zone | Read |
-   | DNS & Zones | Zone Settings | Edit |
-   | Rules & Configuration | Single Redirect | Read and Edit |
-
-   Leave everything else unticked. Cloudflare may rename or move these over time, so match by what they do: edit DNS records, read the zone, edit its settings and edit its redirect rule.
-3. Under **Zone Resources**, choose your specific domain. Limiting the token to one zone means a leaked token can't touch your other domains.
-4. Create it and **copy the token now**. Cloudflare shows it once.
-
-**B. The R2 bucket and its keys** (for state)
-
-1. In the dashboard, open **R2 object storage** and create a bucket. Keep it private, which is the default. Note its name.
-2. On the same R2 page, under **Account Details**, choose **Manage** next to **API Tokens**, then create an API token with **Object Read & Write** permission, limited to that bucket.
-3. Copy the **Access Key ID** and the **Secret Access Key** now. The secret is shown once.
-4. Also note your **account ID**, shown on the R2 page. It goes into `backend.hcl` in step 3, not into `.env`.
-
-You'll also need your domain's **zone ID** in step 3. It's on the domain's Overview page, in the right-hand column.
+- About fifteen minutes in the Cloudflare dashboard. Step 4 walks you through it.
 
 ### Step by step
 
-**1. Clone the repo and fill in `.env`.**
+**1. Clone the repo and create your secrets file.**
 
 ```
 git clone https://github.com/timrios/cloudflare-terraform.git
@@ -121,7 +84,7 @@ cd cloudflare-terraform
 cp .env.example .env
 ```
 
-Open `.env` and paste in the three values from the previous section, after the `=` on each line. `.env` is git-ignored, so none of them ever reaches git or your shell history. Never paste them into a chat, a commit or a command line.
+`.env` is where your secrets go. It's git-ignored, so nothing in it reaches git or your shell history. It's empty for now; you fill it in at step 4. Never paste its values into a chat, a commit or a command line.
 
 **2. Make a folder for your domain.**
 
@@ -146,18 +109,60 @@ Email is what most often goes wrong when a domain moves, so `email_provider` is 
 | `google` | Mail is hosted by Google Workspace | 5 MX records and an SPF record |
 | `microsoft` | Mail is hosted by Microsoft 365 | 1 MX record (named from your domain) and an SPF record |
 
-Whatever you pick, the module also creates a **DMARC** record, which tells receiving mail servers what to do with mail that claims to be from your domain but fails its checks. The default policy only reports and never affects delivery. **DKIM** is a signing key unique to your account, so your mail provider gives it to you and you add it yourself (step 4). If you're unsure, start with `none`: it creates no mail records, so it can't redirect your mail anywhere.
+Whatever you pick, the module also creates a **DMARC** record, which tells receiving mail servers what to do with mail that claims to be from your domain but fails its checks. The default policy only reports and never affects delivery. **DKIM** is a signing key unique to your account, so your mail provider gives it to you and you add it yourself (step 5). If you're unsure, start with `none`: it creates no mail records, so it can't redirect your mail anywhere.
 
 The script creates `domains/acme-shop/` with the boilerplate, a short `main.tf`, and the state key already set to `acme-shop/terraform.tfstate`. It prints the next steps. It refuses a bad name, an unknown provider or a folder that already exists, and it never copies a zone ID or token.
 
-**3. Add your own values.** Two files in the new folder, both git-ignored:
+**3. Create your two settings files.** Still in the repo folder:
 
-- `terraform.tfvars`: copy `terraform.tfvars.example` and put in your **zone ID** (Cloudflare dashboard, your domain's Overview page, right-hand column).
-- `backend.hcl`: copy `backend.hcl.example` and put in your R2 bucket name and Cloudflare account ID.
+```
+cp domains/acme-shop/terraform.tfvars.example domains/acme-shop/terraform.tfvars
+cp domains/acme-shop/backend.hcl.example domains/acme-shop/backend.hcl
+```
 
-**4. Describe your domain in `main.tf`.** Change the placeholder `dmarc_report_email` to an address you read, since DMARC reports are sent there. Then add `dkim_records` (from your mail provider) and `extra_records` (verification TXT records, a mail-sending service's CNAMEs and so on). [`examples/basic/main.tf`](examples/basic/main.tf) shows every input.
+If `backend.hcl` is already there (the script copies one if you made it earlier in `examples/basic/`), skip the second command. Both files are git-ignored. Open them and `.env` in your editor now, because the next step fills in six blanks across the three files.
 
-**5. Connect to state and preview.**
+**4. Fill in the six values.** Each comes from the Cloudflare dashboard, in three short visits. Paste each one into its file as you find it:
+
+| Value | Goes in | On the line |
+| --- | --- | --- |
+| Zone ID | `domains/acme-shop/terraform.tfvars` | `zone_id` |
+| Account ID | `domains/acme-shop/backend.hcl` | the `<ACCOUNT_ID>` inside `endpoints` |
+| Bucket name | `domains/acme-shop/backend.hcl` | `bucket` |
+| Cloudflare API token | `.env` | `CLOUDFLARE_API_TOKEN=` |
+| R2 Access Key ID | `.env` | `AWS_ACCESS_KEY_ID=` |
+| R2 Secret Access Key | `.env` | `AWS_SECRET_ACCESS_KEY=` |
+
+The last two are not AWS credentials. R2, Cloudflare's storage, speaks the same protocol as Amazon's S3, and Terraform's state backend reads those standard names, so the R2 keys go under them. They are also a different pair from the Cloudflare API token: the token lets Terraform edit your DNS, and the R2 keys let it read and write its state in the bucket.
+
+*Visit 1: your domain's Overview page.* Copy the **zone ID** from the right-hand column and paste it into `terraform.tfvars`.
+
+*Visit 2: the API token (for DNS).*
+
+1. Go to **My Profile > API Tokens** and choose **Create Token**. Start from scratch with a custom token rather than a template, because the module needs more than DNS.
+2. Add four permissions. Each row is one permission in the dashboard's list, under the section named in the first column; tick the boxes shown:
+
+   | Section | Permission | Tick |
+   | --- | --- | --- |
+   | DNS & Zones | DNS | Edit |
+   | DNS & Zones | Zone | Read |
+   | DNS & Zones | Zone Settings | Edit |
+   | Rules & Configuration | Single Redirect | Read and Edit |
+
+   Leave everything else unticked. Cloudflare may rename or move these over time, so match by what they do: edit DNS records, read the zone, edit its settings and edit its redirect rule.
+3. Under **Zone Resources**, choose your specific domain. Limiting the token to one zone means a leaked token can't touch your other domains.
+4. Create it and **copy the token now**, since Cloudflare shows it once. Paste it into `.env`.
+
+*Visit 3: R2, for the state bucket.*
+
+1. Open **R2 object storage** and create a bucket. Keep it private, which is the default. Paste its name into `backend.hcl`.
+2. The R2 page also shows your **account ID**. Paste it into `backend.hcl`, replacing `<ACCOUNT_ID>` in the endpoint.
+3. On the same page, under **Account Details**, choose **Manage** next to **API Tokens** and create an API token with **Object Read & Write** permission, limited to that bucket.
+4. Copy the **Access Key ID** and the **Secret Access Key** now, since the secret is shown once. Paste them into `.env`.
+
+**5. Describe your domain in `main.tf`.** Change the placeholder `dmarc_report_email` to an address you read, since DMARC reports are sent there. Then add `dkim_records` (from your mail provider) and `extra_records` (verification TXT records, a mail-sending service's CNAMEs and so on). [`examples/basic/main.tf`](examples/basic/main.tf) shows every input.
+
+**6. Connect to state and preview.**
 
 ```
 ./tf acme-shop init -backend-config=backend.hcl
@@ -166,7 +171,7 @@ The script creates `domains/acme-shop/` with the boilerplate, a short `main.tf`,
 
 `init` downloads the provider and connects to the bucket. `plan` is a preview and changes nothing. Read it: if it shows anything **destroyed** or **replaced**, stop and work out why before going on. If your domain already has records in Cloudflare, read the next section before you apply.
 
-**6. Apply, then check.**
+**7. Apply, then check.**
 
 ```
 ./tf acme-shop apply
@@ -179,7 +184,7 @@ The script creates `domains/acme-shop/` with the boilerplate, a short `main.tf`,
 
 Cloudflare scans a new zone and copies in the records it finds, and a domain that already works has mail and website records. Terraform doesn't know about those records, so the first `plan` lists them as "create", and `apply` fails with "already exists". The fix is to **import** them: tell Terraform that the record already exists and which block of your config describes it.
 
-1. Run `init` as in step 5, then `./records acme-shop`. With nothing imported yet, every record shows `NOT IN STATE`. Note each record's ID.
+1. Run `init` as in step 6, then `./records acme-shop`. With nothing imported yet, every record shows `NOT IN STATE`. Note each record's ID.
 2. In the domain's folder, create `imports.tf` with one block per record. Each needs the record's address and its ID, written `<zone_id>/<record_id>`:
 
    ```
@@ -234,7 +239,7 @@ The alternative is deleting the scanned record in the dashboard and letting Terr
 
 ### Pick up here
 
-The module, the example, remote state, unit tests and CI are built, published and green. Tagged `v0.1.0`; the next release is made when changes are ready (patch for a fix, minor for a feature, major for a breaking change). Plan-in-CI works in the private repo. Tagged `v0.2.0` (adds `MX` and `CAA` to `extra_records`, 26 tests); the private repo now uses it and its plan shows no changes. The second domain is set up in the private repo (its own folder, applied 2026-11-16 to 17; SPF, DKIM and DMARC pass). Apple's iCloud setup changed four records behind Terraform's back, so they were refreshed out of the state and imported again; the plan shows no changes. The record lister (`./records`) and the new-domain script (`./new-domain`) are built. The public helper scripts (`new-domain`, `tf`, `records`) are built, tested and in CI (2026-11-17); the commits after the scrub are local until pushed. Next: decide how the private repo uses the public scripts (one copy, not two), then put the project on timrios.dev (portfolio). Terraform is for Tim's own domains; client domains use the launch checklist, not this module, unless the timing and the client's needs justify it (decided 2026-11-16).
+The module, the example, remote state, unit tests, CI and the helper scripts (`new-domain`, `tf`, `records`, public and tested) are built and pushed; `v0.2.0` is the current tag. The README is a single newcomer guide (credentials, steps, importing existing records). Terraform is for my own domains; clients use the launch checklist (decided 2026-11-16, confirmed 2026-11-17). Next: decide how the private repo uses the public scripts (one copy, not two), then put the project on timrios.dev (portfolio).
 
 ### In progress
 
@@ -253,10 +258,11 @@ Order: `new-domain` first (most to generalise), then `tf`, then `records`, then 
 
 ### Not started
 
-- [ ] Judge whether clients should get Terraform. The second domain was started the evening of 2026-11-16 and finished 2026-11-17, with the Apple detour (a real-world drift problem) taking a good part of it; no exact time was kept
 
 ### Recently completed
 
+- [x] Decision (2026-11-17, confirming 2026-11-16): clients do not get Terraform. It is for my own domains, where I am the only editor and learn from it; a client domain uses the launch checklist, since a small set of records changed rarely by one person doesn't repay the setup and the state to protect. Revisit only for a client with many records, several editors or ongoing email changes.
+- [x] README setup reordered: clone and create the empty files first, then fill in the six values in three dashboard visits, pasting each into its file (2026-11-17)
 - [x] README "Using it" rewritten as one newcomer guide: what each `new-domain` argument controls (including what each `email_provider` creates), a "domain that already has records" section with `import` blocks (addresses checked with `terraform validate`), and `./records` fixed for a domain whose state is still empty (2026-11-17)
 - [x] README section "Managing more than one domain": the three scripts, `--dir`, and keeping real domains out of this repo (2026-11-17)
 - [x] `shellcheck` in CI and `tests/scripts.sh` (18 checks: new-domain good run and refusals, tf key check, generated config validates, nothing tracked under `domains/`) (2026-11-17)
