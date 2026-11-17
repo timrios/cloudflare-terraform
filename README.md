@@ -42,6 +42,9 @@ Every input has a `description` and a `validation` block, so a typo fails at `pl
 modules/business-domain/   the reusable module
 modules/business-domain/tests/   21 unit tests (terraform test, fake provider)
 examples/basic/            a fictional business (example.com) showing every input
+tf, new-domain, records    helper scripts for running the module on several domains (see below)
+tests/scripts.sh           tests for the helper scripts
+domains/                   where new-domain puts your domains; git-ignored on purpose
 .github/workflows/         format, validate, lint and test on every push
 LEARNING.md                what each step taught me, in my own words
 ```
@@ -77,6 +80,30 @@ You need Terraform 1.17 or newer, a Cloudflare account with the domain added, an
 
 `./tf <folder>` is a small wrapper that loads the token from `.env` and runs Terraform in that folder, so the token never appears in shell history. `example` is the folder in `examples/basic/`; folders made by `./new-domain` are named by their folder (`./tf acme-shop plan`), and `--dir <path>` points at a folder in your own private repo. It refuses to run when the folder name and the state key in `backend.tf` disagree, so two domains can never share one state.
 
+## Managing more than one domain
+
+Three small scripts turn the module into a workflow. Each domain gets its own folder and its own state file, so a change to one can't touch another.
+
+```
+./new-domain acme-shop acme.com google      # make the folder (email provider: none, icloud, google or microsoft)
+./tf acme-shop init -backend-config=backend.hcl
+./tf acme-shop plan
+./records acme-shop                          # every record Cloudflare holds, and whether Terraform manages it
+```
+
+- **`./new-domain`** copies the boilerplate from `examples/basic/`, writes a minimal `main.tf`, and sets the folder's state key to `<folder>/terraform.tfstate`. It refuses a bad name, an unknown email provider or a folder that already exists, and it never copies a zone ID or token. Afterwards you put your zone ID in `terraform.tfvars` and your bucket in `backend.hcl` (the script prints the steps), change the placeholder `dmarc_report_email` to an address you read, and add the domain's own records.
+- **`./tf <folder> ...`** loads credentials from `.env`, then runs Terraform in that folder. A folder's own `.env` overrides the shared one, so each domain can have a token limited to its own zone. It refuses to run if the state key doesn't match the folder name.
+- **`./records <folder>`** is read-only. It lists the zone's records from Cloudflare's API and flags `NOT IN STATE`, a record Terraform doesn't know about (a `plan` stays silent about it), and `IN STATE ONLY`, a record Terraform expects that is gone. It needs `curl` and `jq`.
+
+**Keep real domains out of this repo.** `./new-domain` writes to `domains/`, which `.gitignore` excludes, and a test fails if anything under it is committed. To keep your domains under version control, use a private repo of your own and point the scripts at it:
+
+```
+./new-domain --dir ~/my-dns --module-source "git::https://github.com/<you>/cloudflare-terraform.git//modules/business-domain?ref=v0.2.0" acme-shop acme.com google
+./tf --dir ~/my-dns acme-shop plan
+```
+
+`--module-source` is required with `--dir` because Terraform only accepts a relative module path that starts with `./` or `../`, and a folder outside this repo has no fixed path to the module.
+
 ## Limits and next steps
 
 - `terraform plan` doesn't run in CI in this repo, on purpose: a plan needs a real zone, real state and a token, and this repo is public and holds none of them. It runs in the private repo that uses the module, on every pull request, with a read-only Cloudflare token and an Object Read only key for the state bucket, so CI can show a plan but can't change anything.
@@ -107,7 +134,7 @@ Order: `new-domain` first (most to generalise), then `tf`, then `records`, then 
 - [x] Public `tf` that takes a folder name (or `--dir`), loads `.env` files and refuses on a mismatched state key (2026-11-17)
 - [x] Public `records` (same folder rules as `tf`, checks for `curl`/`jq`, a token and a zone ID; on a real zone its output was identical to the private script's) (2026-11-17)
 - [x] `shellcheck` in CI and `tests/scripts.sh` (18 checks: new-domain good run and refusals, tf key check, generated config validates, nothing tracked under `domains/`) (2026-11-17)
-- [ ] README section for newcomers: how to use the three scripts with your own domain
+- [x] README section "Managing more than one domain": the three scripts, `--dir`, and keeping real domains out of this repo (2026-11-17)
 - [ ] Decide how the private repo uses the public scripts (one copy, not two)
 
 ### Not started
