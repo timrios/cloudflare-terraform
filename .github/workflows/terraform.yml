@@ -54,3 +54,11 @@ jobs:
         run: |
           tflint --init
           tflint --recursive
+
+      # The helper scripts decide which state file a domain uses, so they get linted and tested too.
+      # The test also fails if anything under domains/ (git-ignored on purpose) has been committed.
+      - name: Lint the shell scripts
+        run: shellcheck tf records new-domain tests/scripts.sh
+
+      - name: Test the shell scripts
+        run: tests/scripts.sh

@@ -106,7 +106,7 @@ Order: `new-domain` first (most to generalise), then `tf`, then `records`, then 
 - [x] Public `new-domain` (from `examples/basic/`; folders go in the git-ignored `domains/`, or `--dir` with a required `--module-source`; generated config checked with `terraform validate`) (2026-11-17)
 - [x] Public `tf` that takes a folder name (or `--dir`), loads `.env` files and refuses on a mismatched state key (2026-11-17)
 - [x] Public `records` (same folder rules as `tf`, checks for `curl`/`jq`, a token and a zone ID; on a real zone its output was identical to the private script's) (2026-11-17)
-- [ ] `shellcheck` in CI and a test script for `new-domain`
+- [x] `shellcheck` in CI and `tests/scripts.sh` (18 checks: new-domain good run and refusals, tf key check, generated config validates, nothing tracked under `domains/`) (2026-11-17)
 - [ ] README section for newcomers: how to use the three scripts with your own domain
 - [ ] Decide how the private repo uses the public scripts (one copy, not two)
 
