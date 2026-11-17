@@ -89,7 +89,16 @@ The two `AWS_` names look odd for a Cloudflare setup. R2 speaks the same protoco
 **A. The Cloudflare API token** (for DNS)
 
 1. In the dashboard, go to **My Profile > API Tokens** and choose **Create Token**. Start from scratch with a custom token rather than a template, because the module needs more than DNS.
-2. Under permissions, add: edit DNS records, edit zone settings, read the zone, and edit Dynamic URL Redirects. Cloudflare's wording for these may differ slightly; pick the ones that match.
+2. Add four permissions. Each row below is one permission in the dashboard's list, under the section named in the first column; tick the boxes shown:
+
+   | Section | Permission | Tick |
+   | --- | --- | --- |
+   | DNS & Zones | DNS | Edit |
+   | DNS & Zones | Zone | Read |
+   | DNS & Zones | Zone Settings | Edit |
+   | Rules & Configuration | Single Redirect | Read and Edit |
+
+   Leave everything else unticked. Cloudflare may rename or move these over time, so match by what they do: edit DNS records, read the zone, edit its settings and edit its redirect rule.
 3. Under **Zone Resources**, choose your specific domain. Limiting the token to one zone means a leaked token can't touch your other domains.
 4. Create it and **copy the token now**. Cloudflare shows it once.
 
