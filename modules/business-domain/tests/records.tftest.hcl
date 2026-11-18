@@ -119,6 +119,43 @@ run "security_settings_follow_the_inputs" {
   }
 }
 
+# The defaults must be the cautious ones: subdomains and preload are hard to undo once browsers cache them.
+run "hsts_defaults_are_on_and_cautious" {
+  command = plan
+
+  assert {
+    condition = cloudflare_zone_setting.hsts.value == {
+      strict_transport_security = {
+        enabled            = true
+        max_age            = 15552000
+        include_subdomains = false
+        preload            = false
+        nosniff            = true
+      }
+    }
+    error_message = "HSTS should default to on, 6 months, no subdomains, no preload, nosniff on."
+  }
+}
+
+# optional() means overriding one field keeps the other four at their defaults.
+run "hsts_override_keeps_other_defaults" {
+  command = plan
+
+  variables {
+    hsts = { include_subdomains = true }
+  }
+
+  assert {
+    condition     = cloudflare_zone_setting.hsts.value.strict_transport_security.include_subdomains == true
+    error_message = "include_subdomains should follow the input."
+  }
+
+  assert {
+    condition     = cloudflare_zone_setting.hsts.value.strict_transport_security.max_age == 15552000 && cloudflare_zone_setting.hsts.value.strict_transport_security.preload == false
+    error_message = "Fields that weren't set should keep their defaults."
+  }
+}
+
 # The redirect rule is written without the domain, so it works for any client.
 run "redirect_is_a_permanent_www_to_apex" {
   command = plan

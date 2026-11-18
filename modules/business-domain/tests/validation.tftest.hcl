@@ -74,6 +74,30 @@ run "min_tls_version_rejects_unknown_versions" {
   expect_failures = [var.min_tls_version]
 }
 
+run "hsts_max_age_rejects_more_than_a_year" {
+  command = plan
+  variables {
+    hsts = { max_age = 63072000 }
+  }
+  expect_failures = [var.hsts]
+}
+
+run "hsts_max_age_rejects_fractions" {
+  command = plan
+  variables {
+    hsts = { max_age = 86400.5 }
+  }
+  expect_failures = [var.hsts]
+}
+
+run "hsts_preload_needs_subdomains_and_a_year" {
+  command = plan
+  variables {
+    hsts = { preload = true, include_subdomains = true }
+  }
+  expect_failures = [var.hsts]
+}
+
 run "dkim_records_reject_other_types" {
   command = plan
   variables {

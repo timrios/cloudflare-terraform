@@ -115,3 +115,32 @@ variable "min_tls_version" {
     error_message = "min_tls_version must be one of: 1.0, 1.1, 1.2, 1.3."
   }
 }
+
+variable "hsts" {
+  description = "HSTS (Strict-Transport-Security): tells browsers to use only https for this domain for max_age seconds. Set only the fields to change; the rest keep their defaults."
+
+  # optional() lets a caller override one field without restating the others.
+  type = object({
+    enabled = optional(bool, true)
+    # 6 months: long enough to protect returning visitors, short enough to recover if https ever breaks.
+    max_age = optional(number, 15552000)
+    # Off by default: browsers would refuse any subdomain that only works over http, and they remember it for max_age.
+    include_subdomains = optional(bool, false)
+    # Off by default: preload bakes the domain into browsers and takes months to undo.
+    preload = optional(bool, false)
+    # Also sends X-Content-Type-Options: nosniff, so browsers don't guess a file's type and run it as script.
+    nosniff = optional(bool, true)
+  })
+  default = {}
+
+  validation {
+    condition     = var.hsts.max_age >= 0 && var.hsts.max_age <= 31536000 && floor(var.hsts.max_age) == var.hsts.max_age
+    error_message = "hsts.max_age must be a whole number of seconds from 0 to 31536000 (one year)."
+  }
+
+  # These are the preload list's own entry rules (hstspreload.org); failing them here beats a rejected submission.
+  validation {
+    condition     = !var.hsts.preload || (var.hsts.include_subdomains && var.hsts.max_age >= 31536000)
+    error_message = "hsts.preload needs include_subdomains = true and max_age = 31536000 (one year)."
+  }
+}
