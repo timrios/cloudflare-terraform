@@ -31,7 +31,7 @@ I also built this to learn Terraform properly. I wrote it one piece at a time an
 | Email signing | DKIM records from the provider | `dkim_records` |
 | Email policy | A DMARC record | `dmarc_policy`, `dmarc_report_email` |
 | Website | Proxied `www` and apex records, and a 301 redirect from `www` to the bare domain | none |
-| Security | Always Use HTTPS, minimum TLS version | `min_tls_version` |
+| Security | Always Use HTTPS, minimum TLS version, HSTS (on by default: 6 months, no subdomains, no preload) | `min_tls_version`, `hsts` |
 | Anything else | Verification proofs, a mail-sending service's CNAMEs, extra MX records, CAA (which certificate authorities may issue certificates) | `extra_records` |
 
 Every input has a `description` and a `validation` block, so a typo fails at `plan` with a clear message instead of at `apply` with an API error.
@@ -132,7 +132,7 @@ It's git-ignored and holds one line: this domain's zone ID. Open it and the root
 | R2 Access Key ID | `.env` | `AWS_ACCESS_KEY_ID=` |
 | R2 Secret Access Key | `.env` | `AWS_SECRET_ACCESS_KEY=` |
 
-Only the zone ID belongs to one domain. The other five are shared, so a second domain needs just its own zone ID. (A domain's `.env` can also hold its own `CLOUDFLARE_API_TOKEN`, which wins over the shared one, so a domain can have a token limited to its own zone.)
+Only the zone ID belongs to one domain. The other five are shared, so a second domain needs just its own zone ID. (A domain's `.env` can also hold its own `CLOUDFLARE_API_TOKEN`, which wins over the shared one, so a domain can have a token limited to its own zone.) Because that one wins, never park another token (a read-only one for CI, say) under the name `CLOUDFLARE_API_TOKEN` in a domain's `.env`: `plan` still works, but `apply` fails with a `403 Authentication error` on the first change.
 
 The two R2 keys are not AWS credentials. R2, Cloudflare's storage, speaks the same protocol as Amazon's S3, and Terraform's state backend reads those standard names, so the R2 keys go under them. They are also a different pair from the Cloudflare API token: the token lets Terraform edit your DNS, and the R2 keys let it read and write its state in the bucket.
 
@@ -240,7 +240,7 @@ The alternative is deleting the scanned record in the dashboard and letting Terr
 
 ### Pick up here
 
-The module, the example, remote state, unit tests, CI and the helper scripts (`new-domain`, `tf`, `records`, public and tested) are built and pushed; `v0.2.0` is the current tag. The README is a single newcomer guide (credentials, steps, importing existing records). Terraform is for my own domains; clients use the launch checklist (decided 2026-11-16, confirmed 2026-11-17). Settings are now two `.env` files (root, shared; per domain, the zone ID); the public repo and `dns-live` are both converted and `dns-live` has nothing pending. The project is linked from timrios.dev's "How this site was built" page (committed in the portfolio repo, not pushed; no project page, decided 2026-11-17). Nothing else is pending. Recent commits are local, not pushed.
+The module, the example, remote state, unit tests, CI and the helper scripts (`new-domain`, `tf`, `records`, public and tested) are built and pushed; `v0.3.0` (HSTS) is the current tag. The README is a single newcomer guide (credentials, steps, importing existing records). Terraform is for my own domains; clients use the launch checklist (decided 2026-11-16, confirmed 2026-11-17). Settings are now two `.env` files (root, shared; per domain, the zone ID); the public repo and `dns-live` are both converted and `dns-live` has nothing pending (the duplicate Apple record removal is applied live and pushed). The project is linked from my portfolio site's "How this site was built" page (no project page, decided 2026-11-17). HSTS was added on 2026-11-18 and tagged `v0.3.0`. Next: bump `ref` in `dns-live` and read its plan before applying: it should show only the `security_header` setting changing on each domain.
 
 ### In progress
 
@@ -252,6 +252,7 @@ Nothing.
 
 ### Recently completed
 
+- [x] Removed a duplicate Apple verification record from my own domain with Terraform; fixed a `403` caused by a read-only CI token saved under `CLOUDFLARE_API_TOKEN` in the domain's `.env`; README warning and `LEARNING.md` Step 17 added (2026-11-17)
 - [x] Put the project on timrios.dev (2026-11-17): no work-list entry, since that list is for clients. The "How this site was built" page now has an open-source section and links to the site's code and to this module
 - [x] Public versions of the helper scripts (`new-domain`, `tf`, `records`): no personal values, a choice of module source, real domains kept out of this repo, `shellcheck` and `tests/scripts.sh` in CI, and the README section (2026-11-17)
 - [x] Decided the private repo uses the public scripts: `dns-live` keeps three-line wrappers that call them with `--dir`, so there is one copy of the logic. `tf` and `records` read the shared `.env` from the `--dir` folder (2026-11-17)
@@ -266,6 +267,7 @@ Nothing.
 - [x] Public `records` (same folder rules as `tf`, checks for `curl`/`jq`, a token and a zone ID; on a real zone its output was identical to the private script's) (2026-11-17)
 - [x] Public `tf` that takes a folder name (or `--dir`), loads `.env` files and refuses on a mismatched state key (2026-11-17)
 - [x] Public `new-domain` (from `examples/basic/`; folders go in the git-ignored `domains/`, or `--dir` with a required `--module-source`; generated config checked with `terraform validate`) (2026-11-17)
+- [x] HSTS as a zone setting (`hsts` input, an `object` with `optional()` defaults; preload rules validated); 5 new tests, 31 in all (2026-11-18)
 - [x] `./new-domain <folder> <domain> <email_provider>` in the private repo: makes a new domain's folder from the safe boilerplate, writes a minimal `main.tf`, sets the state key with `sed` and checks it; refuses bad names, existing folders and unknown providers (2026-11-17)
 - [x] `./records <folder>` in the private repo: lists a zone's records with their IDs and flags any not in the state (and any in the state but gone from Cloudflare); read-only; the second domain shows all eight as managed (2026-11-17)
 

@@ -474,3 +474,32 @@ Added the first time each comes up.
 **Corrections and things worth remembering:**
 - First run failed: with `--dir`, `./tf` still looked for the shared `.env` in the public repo's folder, found none, and so the bucket name was empty. A script that takes a folder must decide which folder owns each file it reads. Fixed in `tf` and `records` with an `envroot` variable.
 - `init` asked for `-reconfigure` because the backend settings moved from `backend.hcl` to the environment; the bucket and key were unchanged, so it was safe and the plan showed no changes.
+
+## Step 17 — Removing a record, and a token that was too weak
+
+**What we did:** Deleted a duplicate Apple verification TXT record from my live domain by removing it from `main.tf`, reading the plan (`1 to destroy`), and applying. Git keeps the removed block, so it can be restored by reverting the commit.
+
+**The idea:**
+- Terraform deletes whatever is in state but no longer in the config. The plan is the safety check: it must name only the record you meant.
+- Cloudflare stamps each record with `created_on`, and `terraform state show` prints it. That is how we told two near-identical records apart (the newer one matched the latest Apple setup attempt).
+- `./records` asks the Cloudflare API directly, so it shows the real zone. `dig` goes through DNS caches (TTL 3600) and lags up to an hour after a change.
+
+**Corrections and things worth remembering:**
+- `apply` failed with `403 Authentication error` while `plan` worked: the token could read but not edit DNS. A domain's own `.env` overrides the shared `CLOUDFLARE_API_TOKEN`, and a read-only CI token had been parked there. Commenting that line out made `./tf` use the shared full token.
+- The same variable name holds different keys in different places (laptop `.env` has full keys; GitHub secrets hold the read-only CI pair), so the name alone never says what a key can do.
+- An apply that errors can look like it finished if you skip the last lines. Read for `Apply complete! ... 1 destroyed`, and confirm with `./records`.
+
+## Step 18 — HSTS as a zone setting, and an `object` variable
+
+**What we did:** Added a `cloudflare_zone_setting` for `security_header` (HSTS), driven by a new `hsts` input, with two behaviour tests and three validation tests.
+
+**The idea:**
+- Always Use HTTPS is a redirect, so the browser's first request still goes out over plain http, where someone on the same Wi-Fi can catch it and never pass the redirect on (SSL stripping). HSTS makes the browser switch to https itself, before anything leaves the device, for `max_age` seconds after one https visit. The two settings work together: one fixes a visitor who arrives on http, the other stops them arriving on http again.
+- `preload` closes the last gap (the very first visit) by putting the domain in browsers' built-in list, which is why it's so hard to undo.
+- A variable can be an `object` (several named fields as one input). Wrapping each field in `optional(type, default)` lets a caller set one field and keep the rest; `default = {}` then means "all defaults".
+- Naming the variable's fields to match the API lets the resource pass it through whole (`strict_transport_security = var.hsts`) instead of copying field by field.
+- One rule per `validation` block, so each failure says exactly what's wrong.
+
+**Corrections and things worth remembering:**
+- The first plan was to reject a `max_age` under 6 months. That contradicts the advice to start small and grow, so the check is only "0 to one year"; the cautious part is the default.
+- Browsers cache HSTS, so a wrong setting can't be undone quickly: `include_subdomains` breaks any subdomain that only works over http, for as long as `max_age`.
